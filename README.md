@@ -9,7 +9,7 @@ Superwebby uses **Python 3 + PyQt6 / Qt WebEngine** so it actually builds and
 renders modern pages, then wraps its own chrome, shortcuts, blocking, and
 internal pages around that engine.
 
-The application ID used for Flatpak is `io.github.superwebby.Superwebby`. That
+The Flatpak application ID is `io.github.superwebby.Superwebby`. That
 GitHub-style namespace is a placeholder and is easy to rename later in the
 manifest, desktop file, metainfo, and icon filenames together.
 
@@ -78,28 +78,21 @@ shipped in the source tree so startup never needs a network fetch.
 | Escape | Close palette, find bar, or panel; stop load |
 | Ctrl+Q / Ctrl+Shift+W | Quit window |
 
-## Install from a Flatpak bundle
+## Install the Flatpak
 
-Once the bundle is published as a GitHub Release asset named
-`superwebby-1.0.0.flatpak`, install it with:
+You need [Flatpak](https://flatpak.org/setup/) and the Flathub remote (for the
+KDE Platform 6.11 runtime):
 
 ```bash
-flatpak install --user https://github.com/superwebby/Superwebby/releases/download/v1.0.0/superwebby-1.0.0.flatpak
-flatpak run io.github.superwebby.Superwebby
+flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 ```
 
-From a local copy of the same bundle:
+Download the bundle from the v1.0.0 GitHub release, then install it:
 
 ```bash
+curl -L -o superwebby-1.0.0.flatpak https://github.com/superwebby/superwebby/releases/download/v1.0.0/superwebby-1.0.0.flatpak
 flatpak install --user ./superwebby-1.0.0.flatpak
 flatpak run io.github.superwebby.Superwebby
-```
-
-The first install also pulls the KDE Platform 6.11 runtime from Flathub. Add
-the remote first if you do not already have it:
-
-```bash
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 ```
 
 Build the bundle from this tree (needs `flatpak` and `flatpak-builder`):
@@ -113,34 +106,32 @@ The Flatpak uses `org.kde.Platform` 6.11 and
 `com.riverbankcomputing.PyQt.BaseApp` 6.11, which already includes PyQt6 and
 Qt WebEngine.
 
-## Install from an AUR-style PKGBUILD (Arch Linux)
+## Install on Arch Linux (PKGBUILD)
 
-This repo ships two PKGBUILDs:
+You need `base-devel` (`sudo pacman -S --needed base-devel`). This repo ships
+two PKGBUILDs; `makepkg -si` pulls in the dependencies and fetches the v1.0.0
+release tarball.
 
-- `aur/superwebby` — builds from the reproducible source tarball
-- `aur/superwebby-bin` — installs a prebuilt, stripped PyInstaller onedir tree
-
-They expect release assets at:
-
-- `https://github.com/superwebby/Superwebby/releases/download/v1.0.0/superwebby-1.0.0.tar.gz`
-- `https://github.com/superwebby/Superwebby/releases/download/v1.0.0/superwebby-1.0.0-x86_64.tar.gz`
-
-Until those URLs exist, build the tarballs locally and place them next to the
-PKGBUILD (or adjust `source=` to a `file://` path):
+From source:
 
 ```bash
-./packaging/build-source-tarball.sh
-./packaging/build-bin.sh   # optional, for superwebby-bin
-cp packaging/superwebby-1.0.0.tar.gz aur/superwebby/
-cd aur/superwebby
-# If you are installing from a local tarball, temporarily set
-# source=("${pkgname}-${pkgver}.tar.gz") in the PKGBUILD, then:
+git clone https://github.com/superwebby/superwebby.git
+cd superwebby/aur/superwebby
 makepkg -si
+superwebby
 ```
 
-You need `base-devel` (`sudo pacman -S --needed base-devel`). `makepkg -si`
-pulls in the Qt and PyQt dependencies for the source package. Launch with
-`superwebby`.
+Or the prebuilt binary package:
+
+```bash
+git clone https://github.com/superwebby/superwebby.git
+cd superwebby/aur/superwebby-bin
+makepkg -si
+superwebby
+```
+
+Until the AUR itself accepts new accounts, these are AUR-style PKGBUILDs in
+this repository, not packages already listed on aur.archlinux.org.
 
 ## Running from this tree
 

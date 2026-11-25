@@ -1,27 +1,17 @@
-# Superwebby AUR packages
+# Superwebby AUR-style packages (1.0.0)
 
-This archive is AUR-style packaging for Superwebby 1.0.0.
-
-## Packages
-
-- `superwebby/` — build from the reproducible source tarball.
-  Depends on `python`, `python-pyqt6`, `python-pyqt6-webengine`, `qt6-webengine`.
-- `superwebby-bin/` — install a prebuilt, stripped PyInstaller onedir tree
-  into `/opt/superwebby` with a `/usr/bin/superwebby` symlink.
-
-Both directories already contain their source tarballs, so you can run
-`makepkg -si` offline on an Arch system.
+- `superwebby/` — build from the source tarball on the GitHub release
+- `superwebby-bin/` — install the prebuilt x86_64 tarball from the same release
 
 ```bash
+# from source
 cd superwebby && makepkg -si
-# or
+
+# or the prebuilt binary
 cd superwebby-bin && makepkg -si
 ```
 
-The source is reproducible (`packaging/build-source-tarball.sh` uses
-sorted names, numeric owners, and a fixed mtime). Rebuild the binary
-tarball with `packaging/build-bin.sh` from the source tree.
-
-This environment is Debian, not Arch, so PKGBUILDs were syntax-checked
-with `bash -n` and their sha256sums were verified against the files.
-Use `namcap` and `makepkg` on Arch for the official package check.
+The PKGBUILDs download their `source=` tarballs from
+https://github.com/superwebby/superwebby/releases/tag/v1.0.0
+so they need network access, or you can place the matching tarball next to
+the PKGBUILD and temporarily drop the `::https://...` suffix from `source=`.

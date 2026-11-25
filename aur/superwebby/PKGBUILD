@@ -4,11 +4,11 @@ pkgver=1.0.0
 pkgrel=1
 pkgdesc="Painless privacy-first desktop web browser with a real Ctrl+J downloads panel"
 arch=('any')
-url="https://github.com/superwebby/Superwebby"
+url="https://github.com/superwebby/superwebby"
 license=('GPL-3.0-or-later')
 depends=('python' 'python-pyqt6' 'python-pyqt6-webengine' 'qt6-webengine')
-source=("${pkgname}-${pkgver}.tar.gz::https://github.com/superwebby/Superwebby/releases/download/v${pkgver}/${pkgname}-${pkgver}.tar.gz")
-sha256sums=('53f11de27119bbe366651e6d25a4c7f64044bbe7ae3fa19e4b5180639b162681')
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/superwebby/superwebby/releases/download/v${pkgver}/${pkgname}-${pkgver}.tar.gz")
+sha256sums=('af96ee974b4f8d5ea199eaa44283fe92907727b7c97f8d561fdd17c2ebbbad01')
 
 package() {
   cd "${srcdir}/${pkgname}-${pkgver}"

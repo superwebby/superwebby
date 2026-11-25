@@ -4,13 +4,13 @@ pkgver=1.0.0
 pkgrel=1
 pkgdesc="Painless privacy-first desktop web browser (prebuilt, stripped binary)"
 arch=('x86_64')
-url="https://github.com/superwebby/Superwebby"
+url="https://github.com/superwebby/superwebby"
 license=('GPL-3.0-or-later')
 depends=('glibc' 'zlib' 'fontconfig' 'freetype2' 'libx11' 'libxkbcommon' 'libxcb' 'nss' 'nspr' 'libdrm' 'mesa' 'alsa-lib')
 provides=('superwebby')
 conflicts=('superwebby')
 options=('!strip')
-source=("superwebby-${pkgver}-x86_64.tar.gz::https://github.com/superwebby/Superwebby/releases/download/v${pkgver}/superwebby-${pkgver}-x86_64.tar.gz"
+source=("superwebby-${pkgver}-x86_64.tar.gz::https://github.com/superwebby/superwebby/releases/download/v${pkgver}/superwebby-${pkgver}-x86_64.tar.gz"
         "superwebby.desktop"
         "LICENSE")
 sha256sums=('882878522ffaa94507b2d21dd7aeb3229e3807fb014ec05d0fd60f500eff40e9'
