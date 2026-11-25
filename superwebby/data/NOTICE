@@ -1,0 +1,24 @@
+Third-party blocklist sources
+=============================
+
+The compiled domain list in blocklist.txt is derived from:
+
+1. Peter Lowe's ad server list
+   https://pgl.yoyo.org/adservers/
+   Used with permission as stated by the author for blocking ads;
+   please credit pgl.yoyo.org as the source for those entries.
+
+2. StevenBlack/hosts
+   https://github.com/StevenBlack/hosts
+   License: MIT
+   Copyright (c) Steven Black and contributors
+
+3. EasyList / EasyPrivacy ad server and tracking server domain rules
+   https://easylist.to/
+   https://github.com/easylist/easylist
+   License: Creative Commons Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0)
+   https://creativecommons.org/licenses/by-sa/3.0/
+
+Superwebby ships a compiled set of hostnames (one domain per line) for
+offline request interception. It is not a verbatim copy of the original
+filter-list files. If you redistribute Superwebby, retain this NOTICE.

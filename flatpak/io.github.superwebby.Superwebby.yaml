@@ -1,0 +1,58 @@
+# Superwebby Flatpak manifest
+# App ID uses a placeholder io.github.superwebby namespace and is easy to rename.
+#
+# Runtime: KDE Platform 6.11 + com.riverbankcomputing.PyQt.BaseApp 6.11
+# (includes PyQt6, PyQt6-WebEngine, and Qt WebEngine; no separate
+# io.qt.qtwebengine.BaseApp layer is required).
+id: io.github.superwebby.Superwebby
+runtime: org.kde.Platform
+runtime-version: '6.11'
+sdk: org.kde.Sdk
+base: com.riverbankcomputing.PyQt.BaseApp
+base-version: '6.11'
+command: superwebby
+separate-locales: false
+cleanup-commands:
+  - /app/cleanup-BaseApp.sh
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio
+  - --device=dri
+  - --filesystem=xdg-download:create
+  - --env=QTWEBENGINEPROCESS_PATH=/app/bin/QtWebEngineProcess
+cleanup:
+  - '*.a'
+  - '*.la'
+  - /include
+  - /lib/pkgconfig
+  - /share/man
+modules:
+  - name: superwebby
+    buildsystem: simple
+    build-commands:
+      - pip3 install --verbose --no-build-isolation --no-deps --prefix=${FLATPAK_DEST} .
+      - install -Dm644 io.github.superwebby.Superwebby.desktop
+          ${FLATPAK_DEST}/share/applications/io.github.superwebby.Superwebby.desktop
+      - install -Dm644 io.github.superwebby.Superwebby.metainfo.xml
+          ${FLATPAK_DEST}/share/metainfo/io.github.superwebby.Superwebby.metainfo.xml
+      - install -Dm644 assets/superwebby.svg
+          ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/io.github.superwebby.Superwebby.svg
+      - |
+        for s in 16 24 32 48 64 128 256 512; do
+          if [ -f "assets/superwebby-${s}.png" ]; then
+            install -Dm644 "assets/superwebby-${s}.png" \
+              "${FLATPAK_DEST}/share/icons/hicolor/${s}x${s}/apps/io.github.superwebby.Superwebby.png"
+          fi
+        done
+      - install -Dm644 assets/superwebby.png
+          ${FLATPAK_DEST}/share/pixmaps/io.github.superwebby.Superwebby.png
+    sources:
+      - type: dir
+        path: ..
+      - type: file
+        path: io.github.superwebby.Superwebby.desktop
+      - type: file
+        path: io.github.superwebby.Superwebby.metainfo.xml

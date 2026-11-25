@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""System launcher for the from-source Superwebby install."""
+import sys
+from pathlib import Path
+
+CANDIDATES = [
+    Path("/usr/lib/superwebby"),
+    Path(__file__).resolve().parent.parent,
+]
+# When running from a user checkout via `python -m`, this file is not used.
+for path in CANDIDATES:
+    if (path / "superwebby" / "app.py").is_file():
+        sys.path.insert(0, str(path))
+        break
+
+from superwebby.app import main
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,22 @@
+[Desktop Entry]
+Name=Superwebby
+GenericName=Web Browser
+Comment=Painless privacy-first web browser with a real Ctrl+J downloads panel
+Exec=superwebby %U
+Icon=superwebby
+Terminal=false
+Type=Application
+Categories=Network;WebBrowser;
+MimeType=text/html;text/xml;application/xhtml+xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;
+StartupNotify=true
+StartupWMClass=Superwebby
+Keywords=Internet;WWW;Browser;Web;Privacy;
+Actions=NewWindow;NewPrivateWindow;
+
+[Desktop Action NewWindow]
+Name=New Window
+Exec=superwebby
+
+[Desktop Action NewPrivateWindow]
+Name=New Private Window
+Exec=superwebby --incognito

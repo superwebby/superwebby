@@ -1,0 +1,35 @@
+# Maintainer: Ray Shaw
+pkgname=superwebby-bin
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Painless privacy-first desktop web browser (prebuilt, stripped binary)"
+arch=('x86_64')
+url="https://github.com/superwebby/Superwebby"
+license=('GPL-3.0-or-later')
+depends=('glibc' 'zlib' 'fontconfig' 'freetype2' 'libx11' 'libxkbcommon' 'libxcb' 'nss' 'nspr' 'libdrm' 'mesa' 'alsa-lib')
+provides=('superwebby')
+conflicts=('superwebby')
+options=('!strip')
+source=("superwebby-${pkgver}-x86_64.tar.gz::https://github.com/superwebby/Superwebby/releases/download/v${pkgver}/superwebby-${pkgver}-x86_64.tar.gz"
+        "superwebby.desktop"
+        "LICENSE")
+sha256sums=('882878522ffaa94507b2d21dd7aeb3229e3807fb014ec05d0fd60f500eff40e9'
+            '0e5c8dbda2a88375d7628a517aace2498f30e70b9835a471e35c42bcbb80cff0'
+            '3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986')
+
+package() {
+  cd "${srcdir}/superwebby-${pkgver}-x86_64"
+  install -d "${pkgdir}/opt/superwebby"
+  cp -a superwebby-app/. "${pkgdir}/opt/superwebby/"
+  install -d "${pkgdir}/usr/bin"
+  ln -s /opt/superwebby/superwebby "${pkgdir}/usr/bin/superwebby"
+  install -Dm644 "${srcdir}/superwebby.desktop" "${pkgdir}/usr/share/applications/superwebby.desktop"
+  install -Dm644 "${pkgdir}/opt/superwebby/_internal/assets/superwebby.png" \
+    "${pkgdir}/usr/share/icons/hicolor/256x256/apps/superwebby.png"
+  install -Dm644 "${pkgdir}/opt/superwebby/_internal/assets/superwebby.png" \
+    "${pkgdir}/usr/share/pixmaps/superwebby.png"
+  install -Dm644 "${srcdir}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  install -Dm644 README.txt "${pkgdir}/usr/share/doc/${pkgname}/README.txt"
+}
+
+# vim: ts=2 sw=2 et

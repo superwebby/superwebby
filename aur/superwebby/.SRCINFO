@@ -1,0 +1,15 @@
+pkgbase = superwebby
+	pkgdesc = Painless privacy-first desktop web browser with a real Ctrl+J downloads panel
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/superwebby/Superwebby
+	arch = any
+	license = GPL-3.0-or-later
+	depends = python
+	depends = python-pyqt6
+	depends = python-pyqt6-webengine
+	depends = qt6-webengine
+	source = superwebby-1.0.0.tar.gz::https://github.com/superwebby/Superwebby/releases/download/v1.0.0/superwebby-1.0.0.tar.gz
+	sha256sums = 53f11de27119bbe366651e6d25a4c7f64044bbe7ae3fa19e4b5180639b162681
+
+pkgname = superwebby

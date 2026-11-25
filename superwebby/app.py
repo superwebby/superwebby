@@ -1,0 +1,313 @@
+"""Application entry point. Chromium flags are set before QApplication."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+from superwebby import __app_name__, __version__
+from superwebby.paths import app_root, data_home, downloads_dir
+
+
+CHROMIUM_FLAGS = [
+    "--disable-breakpad",
+    "--disable-crash-reporter",
+    "--disable-component-update",
+    "--disable-background-networking",
+    "--disable-sync",
+    "--disable-client-side-phishing-detection",
+    "--disable-default-apps",
+    "--disable-domain-reliability",
+    "--disable-features=InterestCohortAPI,FederatedLearningOfCohorts,PrivacySandboxAdsAPIs,TranslateUI,MediaRouter,AutofillServerCommunication,OptimizationHints,NotificationTriggers",
+    "--disable-hang-monitor",
+    "--disable-speech-api",
+    "--no-pings",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--metrics-recording-only",  # combined with disable-metrics below; belt and suspenders
+    "--disable-metrics",
+    "--force-dark-mode",
+    "--enable-features=WebContentsForceDark",
+    "--test-third-party-cookie-phaseout",
+    "--log-level=3",
+]
+
+
+def _prepare_environment(offscreen: bool = False) -> None:
+    # Qt / Chromium telemetry and first-run surfaces stay off.
+    os.environ.setdefault("QT_LOGGING_RULES", "qt.webenginecontext.info=false")
+    os.environ.pop("QTWEBENGINE_REMOTE_DEBUGGING", None)
+    flags = list(CHROMIUM_FLAGS)
+    if offscreen or os.environ.get("QT_QPA_PLATFORM") == "offscreen":
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        flags.append("--disable-gpu")
+    # Preserve any user-supplied flags, then ours.
+    existing = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "").strip()
+    merged = (existing + " " + " ".join(flags)).strip()
+    os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = merged
+    # Do not phone home through Qt crash reports.
+    os.environ.setdefault("QT_WEBENGINE_DISABLE_GPU_THREAD", "")
+
+
+def _icon_path() -> Path:
+    candidates: list[Path] = []
+    # PyInstaller onedir
+    if getattr(sys, "frozen", False):
+        meipass = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+        candidates.append(meipass / "assets" / "superwebby.png")
+        candidates.append(Path(sys.executable).resolve().parent / "assets" / "superwebby.png")
+    candidates.append(app_root().parent / "assets" / "superwebby.png")
+    flatpak_id = os.environ.get("FLATPAK_ID", "io.github.superwebby.Superwebby")
+    icon_stems = (flatpak_id, "superwebby")
+    prefixes = ["/app/share"]
+    prefixes.extend(p for p in os.environ.get("XDG_DATA_DIRS", "/usr/local/share:/usr/share").split(":") if p)
+    prefixes.append("/usr/share")
+    seen_prefixes: set[str] = set()
+    for prefix in prefixes:
+        if prefix in seen_prefixes:
+            continue
+        seen_prefixes.add(prefix)
+        base = Path(prefix)
+        for stem in icon_stems:
+            candidates.append(base / "icons" / "hicolor" / "256x256" / "apps" / f"{stem}.png")
+            candidates.append(base / "icons" / "hicolor" / "scalable" / "apps" / f"{stem}.svg")
+            candidates.append(base / "pixmaps" / f"{stem}.png")
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for path in candidates:
+        if path not in seen:
+            seen.add(path)
+            unique.append(path)
+    for path in unique:
+        if path.is_file():
+            return path
+    return unique[0]
+
+
+def _parse(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="superwebby",
+        description="Superwebby — a painless, privacy-first desktop web browser.",
+    )
+    parser.add_argument("url", nargs="?", help="Optional URL or search to open at startup")
+    parser.add_argument("--version", action="version", version=f"Superwebby {__version__}")
+    parser.add_argument("--incognito", action="store_true", help="Private window, nothing written to disk")
+    parser.add_argument("--self-test", action="store_true", help="Run a short headless/offscreen feature test and exit")
+    parser.add_argument("--screenshot", metavar="PATH", help="After load, write a window screenshot to PATH")
+    parser.add_argument("--offscreen", action="store_true", help="Use the offscreen Qt platform")
+    parser.add_argument("--no-restore", action="store_true", help="Do not restore the previous session")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse(list(sys.argv[1:] if argv is None else argv))
+    if args.self_test:
+        tmp = tempfile.mkdtemp(prefix="superwebby-selftest-")
+        os.environ["XDG_DATA_HOME"] = tmp
+        os.environ["XDG_CACHE_HOME"] = tmp
+        os.environ["XDG_CONFIG_HOME"] = tmp
+    offscreen = bool(args.offscreen or (args.self_test and not os.environ.get("DISPLAY")))
+    # Keep the real display when one exists so --self-test can screenshot.
+    if args.self_test and os.environ.get("DISPLAY") and not args.offscreen:
+        offscreen = False
+    _prepare_environment(offscreen=offscreen)
+
+    from superwebby.web import register_scheme
+
+    register_scheme()
+
+    from PyQt6.QtCore import QCoreApplication, Qt, QTimer
+    from PyQt6.QtGui import QIcon
+    from PyQt6.QtWidgets import QApplication
+
+    QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
+    QCoreApplication.setApplicationName(__app_name__)
+    QCoreApplication.setOrganizationName("Superwebby")
+    QCoreApplication.setOrganizationDomain("superwebby.local")
+    QCoreApplication.setApplicationVersion(__version__)
+
+    app = QApplication(sys.argv[:1])
+    app.setDesktopFileName(os.environ.get("FLATPAK_ID") or "superwebby")
+    app.setApplicationDisplayName(__app_name__)
+    app.setQuitOnLastWindowClosed(True)
+
+    from superwebby.theme import apply as apply_theme
+
+    apply_theme(app, force_dark=True)
+
+    icon = QIcon(str(_icon_path())) if _icon_path().is_file() else QIcon()
+    if not icon.isNull():
+        app.setWindowIcon(icon)
+
+    from superwebby.blocker import Blocker
+    from superwebby.history import HistoryStore
+    from superwebby.window import BrowserWindow, interpret_input
+
+    blocker = Blocker()
+    from superwebby.web import create_profile
+
+    profile = create_profile(blocker, incognito=args.incognito)
+    store_path = data_home() / "history.sqlite"
+    history = HistoryStore(store_path, enabled=not args.incognito)
+
+    window = BrowserWindow(profile, blocker, history, icon, incognito=args.incognito)
+    window.show()
+
+    startup = None
+    if args.url:
+        startup = interpret_input(args.url)
+    if args.self_test:
+        return _run_self_test(app, window, blocker, screenshot=args.screenshot)
+    if startup:
+        window.restore_or_start(startup_url=startup)
+    elif args.no_restore or args.incognito:
+        window.open_tab()
+    else:
+        window.restore_or_start()
+
+    if args.screenshot:
+        path = Path(args.screenshot)
+
+        def _shot() -> None:
+            pixmap = window.grab()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            pixmap.save(str(path), "PNG")
+
+        QTimer.singleShot(1800, _shot)
+
+    return app.exec()
+
+
+def _run_self_test(app, window, blocker, screenshot: str | None) -> int:
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from threading import Thread
+    from PyQt6.QtCore import QTimer, QUrl
+    from pathlib import Path
+
+    results: dict[str, object] = {"ok": False, "errors": []}
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args, **kwargs):  # noqa: ANN001
+            return
+
+        def do_GET(self):  # noqa: N802
+            if self.path.startswith("/ads/pixel"):
+                self.send_response(200)
+                self.send_header("Content-Type", "image/gif")
+                self.end_headers()
+                self.wfile.write(b"GIF89a")
+                return
+            if self.path == "/ok.txt":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"ok")
+                return
+            body = b"""<!doctype html><html><head><title>Superwebby Test Page</title>
+<style>body{font-family:system-ui;background:#0e1116;color:#e6edf3;padding:40px}
+h1{color:#ff6b3d} .ok{color:#3dd68c}</style></head>
+<body>
+<h1>Superwebby self-test</h1>
+<p class="ok">This page should render. The tracker image and doubleclick request must be blocked.</p>
+<img src="/ads/pixel.gif" alt="" width="1" height="1" id="adpixel">
+<img src="https://doubleclick.net/pixel.gif" alt="" width="1" height="1" id="tracker">
+<img src="/ok.txt" alt="" width="1" height="1">
+<p>Ctrl+J opens the downloads panel the way Brave did before they removed it.</p>
+</body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    port = server.server_address[1]
+    url = f"http://127.0.0.1:{port}/"
+
+    window.restore_or_start(startup_url=url)
+
+    def finish() -> None:
+        errors = []
+        # Domain + path blocking
+        if not blocker.host_is_blocked("doubleclick.net"):
+            errors.append("doubleclick.net missing from blocklist")
+        if not blocker.host_is_blocked("ad.doubleclick.net"):
+            errors.append("subdomain matching failed for ad.doubleclick.net")
+        if not blocker.would_block("https://doubleclick.net/pixel.gif"):
+            errors.append("would_block failed for doubleclick.net")
+        if not blocker.would_block("http://127.0.0.1/ads/pixel.gif", main_frame=False):
+            errors.append("path rule failed for /ads/pixel")
+        if blocker.would_block(url, main_frame=True):
+            errors.append("main frame of the test page was incorrectly blocked")
+        # Downloads panel (Ctrl+J)
+        if window.downloads.isVisible():
+            errors.append("downloads panel should start hidden")
+        window.toggle_downloads()
+        if not window.downloads.isVisible():
+            errors.append("Ctrl+J/toggle did not show the downloads panel")
+        # History panel
+        window.toggle_history()
+        if not window.history_panel.isVisible():
+            errors.append("history panel did not open")
+        if window.downloads.isVisible():
+            errors.append("downloads panel should hide when history opens")
+        window.toggle_history()
+        window.toggle_downloads()
+        if not window.downloads.isVisible():
+            errors.append("downloads panel did not reopen")
+        # Palette
+        window.open_palette()
+        if not window.palette.isVisible():
+            errors.append("command palette did not open")
+        window.palette.hide_palette()
+        # Omnibox + shortcuts wiring
+        if window.omnibox is None:
+            errors.append("omnibox missing")
+        # Native new-tab page is GPU-independent; show it with the downloads shelf for the shot.
+        window.navigate("superwebby://newtab")
+        if not window.downloads.isVisible():
+            window.toggle_downloads()
+        window.setWindowTitle("Superwebby")
+        shot = screenshot or str(Path("/tmp/superwebby-selftest.png"))
+        try:
+            pix = window.grab()
+            Path(shot).parent.mkdir(parents=True, exist_ok=True)
+            if not pix.save(shot, "PNG"):
+                errors.append("failed to write screenshot")
+            else:
+                results["screenshot"] = shot
+        except Exception as exc:  # pragma: no cover
+            errors.append(f"screenshot: {exc}")
+        results["errors"] = errors
+        results["ok"] = not errors
+        results["blocked_total"] = blocker.total_blocked
+        results["domains"] = len(blocker.domains)
+        app.quit()
+
+    # Give the page a moment to load and the interceptor to run.
+    QTimer.singleShot(2500, finish)
+    code = app.exec()
+    try:
+        server.shutdown()
+    except Exception:
+        pass
+    errors = results.get("errors") or []
+    if results.get("ok"):
+        print(
+            f"SUPERWEBBY SELF-TEST OK  domains={results.get('domains')} "
+            f"blocked_session={results.get('blocked_total')}  screenshot={results.get('screenshot')}"
+        )
+        return 0
+    print("SUPERWEBBY SELF-TEST FAILED")
+    for item in errors:
+        print(" -", item)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

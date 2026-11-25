@@ -1,0 +1,32 @@
+# Maintainer: Ray Shaw
+pkgname=superwebby
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Painless privacy-first desktop web browser with a real Ctrl+J downloads panel"
+arch=('any')
+url="https://github.com/superwebby/Superwebby"
+license=('GPL-3.0-or-later')
+depends=('python' 'python-pyqt6' 'python-pyqt6-webengine' 'qt6-webengine')
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/superwebby/Superwebby/releases/download/v${pkgver}/${pkgname}-${pkgver}.tar.gz")
+sha256sums=('53f11de27119bbe366651e6d25a4c7f64044bbe7ae3fa19e4b5180639b162681')
+
+package() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+  install -d "${pkgdir}/usr/lib/superwebby"
+  cp -a superwebby "${pkgdir}/usr/lib/superwebby/"
+  find "${pkgdir}/usr/lib/superwebby" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+  install -Dm755 packaging/superwebby-launcher "${pkgdir}/usr/bin/superwebby"
+  install -Dm644 assets/superwebby.desktop "${pkgdir}/usr/share/applications/superwebby.desktop"
+  install -Dm644 assets/superwebby.svg "${pkgdir}/usr/share/icons/hicolor/scalable/apps/superwebby.svg"
+  for s in 16 24 32 48 64 128 256 512; do
+    if [[ -f "assets/superwebby-${s}.png" ]]; then
+      install -Dm644 "assets/superwebby-${s}.png" \
+        "${pkgdir}/usr/share/icons/hicolor/${s}x${s}/apps/superwebby.png"
+    fi
+  done
+  install -Dm644 assets/superwebby.png "${pkgdir}/usr/share/pixmaps/superwebby.png"
+  install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+}
+
+# vim: ts=2 sw=2 et

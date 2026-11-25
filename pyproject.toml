@@ -1,0 +1,21 @@
+[project]
+name = "superwebby"
+version = "1.0.0"
+description = "A painless, privacy-first desktop web browser with a real Ctrl+J downloads panel"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+authors = [{ name = "Superwebby contributors" }]
+
+[project.scripts]
+superwebby = "superwebby.app:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["superwebby*"]
+
+[tool.setuptools.package-data]
+superwebby = ["data/*"]
