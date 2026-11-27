@@ -22,7 +22,10 @@
       <li>Ctrl+J downloads shelf, the way Brave used to work</li>
       <li>Command palette (Ctrl+K) that searches tabs, history, and commands</li>
       <li>Built-in ad and tracker blocking with a shield badge</li>
-      <li>Session restore without asking, plus private windows</li>
+      <li>Session restore without asking, plus "Dirty Browser" private windows</li>
+      <li>YouTube and YouTube Music ad blocking, always on</li>
+      <li>High Speed mode with a lighter blocklist and DNS prefetch</li>
+      <li>Favorite sites with per-site fixes, and a live security audit page</li>
     </ul>
   </description>
   <developer id="io.github.superwebby">
@@ -45,6 +48,17 @@
   </keywords>
   <url type="homepage">https://github.com/superwebby/superwebby</url>
   <url type="vcs-browser">https://github.com/superwebby/superwebby</url>
+  <url type="bugtracker">https://github.com/superwebby/superwebby/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main menu with Dirty Browser and High Speed</caption>
+      <image>https://raw.githubusercontent.com/superwebby/superwebby/main/docs/screenshot-menu.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Security audit panel</caption>
+      <image>https://raw.githubusercontent.com/superwebby/superwebby/main/docs/screenshot-audit.png</image>
+    </screenshot>
+  </screenshots>
   <supports>
     <control>pointing</control>
     <control>keyboard</control>
@@ -60,6 +74,19 @@
     <content_attribute id="money-purchasing">intense</content_attribute>
   </content_rating>
   <releases>
+    <release version="1.1.0" date="2026-11-27">
+      <description>
+        <p>Superwebby 1.1.0.</p>
+        <ul>
+          <li>Favorite sites: pinned on the start page with per-site dark mode, cookie janitor, and blocking switches</li>
+          <li>Security audit panel at superwebby://audit with live checks and build-time static analysis</li>
+          <li>YouTube and YouTube Music ad blocking in every build, even in High Speed mode</li>
+          <li>Dirty Browser private windows from the main menu and command palette</li>
+          <li>High Speed mode: instant startup, core blocklist, no cookie janitor, DNS prefetch</li>
+          <li>New peace-sign logo and GitHub links</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-11-25">
       <description>
         <p>Initial release of Superwebby 1.0.0.</p>

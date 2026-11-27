@@ -6,7 +6,9 @@ from html import escape
 from urllib.parse import urlparse
 
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -19,7 +21,11 @@ from PyQt6.QtWidgets import (
 )
 
 from superwebby import __version__
+from superwebby.paths import data_dir
 from superwebby.theme import ACCENT, BORDER, MUTED, SURFACE, SURFACE2, TEXT
+
+GITHUB_URL = "https://github.com/superwebby/superwebby"
+STATUS_COLORS = {"PASS": "#3dd68c", "WARN": "#f2c94c", "FAIL": "#ff5c5c", "INFO": "#7c9cff"}
 
 
 class Tile(QPushButton):
@@ -101,7 +107,17 @@ class InternalPage(QWidget):
         c.addStretch(1)
         self._layout.addWidget(center)
 
-    def _mark(self) -> QLabel:
+    def _mark(self, size: int = 56) -> QLabel:
+        logo = data_dir() / "logo-256.png"
+        if logo.is_file():
+            label = QLabel()
+            pix = QPixmap(str(logo))
+            if not pix.isNull():
+                label.setPixmap(pix.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio,
+                                           Qt.TransformationMode.SmoothTransformation))
+                label.setFixedSize(size, size)
+                label.setToolTip("Superwebby: a flower in the barrel, a peace sign made of people")
+                return label
         mark = QLabel("S")
         mark.setFixedSize(56, 56)
         mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -142,6 +158,10 @@ class InternalPage(QWidget):
             self.show_about()
         elif name in {"blocked", "shield"}:
             self.show_shield()
+        elif name in {"audit", "security"}:
+            self.show_audit()
+        elif name in {"settings", "preferences", "favorites"}:
+            self.show_settings()
         else:
             self.show_about()
 
@@ -177,6 +197,22 @@ class InternalPage(QWidget):
             self._sub("A painless browser. No nags, no telemetry, no wizard. Type and go."),
             row,
         ]
+        favorites = [f for f in self.window.settings.favorites if f.pinned] if self.window else []
+        if favorites:
+            heading = QLabel("YOUR FAVORITE SITES")
+            heading.setStyleSheet(f"color: {MUTED}; font-size: 11px; font-weight: 600; letter-spacing: 1px;")
+            widgets.append(heading)
+            fav_host = QWidget()
+            fav_grid = QGridLayout(fav_host)
+            fav_grid.setContentsMargins(0, 0, 0, 0)
+            fav_grid.setSpacing(10)
+            for i, fav in enumerate(favorites[:8]):
+                notes = [n for n, on in (("light mode", fav.no_dark), ("no janitor", fav.no_janitor),
+                                         ("relaxed blocking", fav.relaxed)) if on]
+                tile = Tile(fav.title or fav.host, "★ " + (" · ".join(notes) or "favorite"), "https://" + fav.host)
+                tile.clicked.connect(lambda *_a, u="https://" + fav.host: self.navigate.emit(u))
+                fav_grid.addWidget(tile, i // 4, i % 4)
+            widgets.append(fav_host)
         frequent = self.window.history.frequent() if self.window else []
         recent = self.window.history.recent(12) if self.window else []
         tiles: list[tuple[str, str, str]] = []
@@ -209,7 +245,7 @@ class InternalPage(QWidget):
 
         hints = QLabel(
             "Ctrl+L address   ·   Ctrl+K command palette   ·   Ctrl+J downloads   ·   "
-            "Ctrl+H history   ·   Ctrl+T new tab"
+            "Ctrl+H history   ·   Ctrl+T new tab   ·   Ctrl+Shift+N Dirty Browser"
         )
         hints.setWordWrap(True)
         hints.setStyleSheet(f"color: {MUTED}; font-size: 13px; padding-top: 18px;")
@@ -267,8 +303,187 @@ class InternalPage(QWidget):
                 "and a real Ctrl+J downloads panel."
             ),
             self._sub(f"Blocked this session: {total}. License: GPL-3.0-or-later."),
+            self._link(f'Source, releases and issues: <a href="{GITHUB_URL}">{GITHUB_URL}</a>'),
+            self._sub("Logo: a flower in a rifle's barrel over a peace sign made of people holding hands. "
+                      "Superwebby is a peace project, not a weapons one."),
         )
         self.title_changed.emit("About Superwebby")
+
+    def _link(self, html: str) -> QLabel:
+        label = QLabel(html)
+        label.setTextFormat(Qt.TextFormat.RichText)
+        label.setWordWrap(True)
+        label.setOpenExternalLinks(False)
+        label.linkActivated.connect(lambda url: self.navigate.emit(url))
+        label.setStyleSheet(f"color: {TEXT}; font-size: 14px;")
+        return label
+
+    def _section(self, text: str) -> QLabel:
+        label = QLabel(text.upper())
+        label.setStyleSheet(f"color: {MUTED}; font-size: 11px; font-weight: 600; letter-spacing: 1px; padding-top: 10px;")
+        return label
+
+    def show_audit(self) -> None:
+        from superwebby.audit import run_audit
+
+        self.current = "superwebby://audit"
+        report = run_audit(self.window)
+        counts = report["counts"]
+        widgets: list[QWidget] = [
+            self._mark(48),
+            self._h1("Security audit"),
+            self._sub(
+                f"Superwebby {report['version']} · {report['mode']} mode · ran {report['ran_at']}. "
+                f"These checks run live against this build. Warnings and failures are shown as they are."
+            ),
+            self._link(
+                " &nbsp; ".join(
+                    f'<span style="color:{STATUS_COLORS[k]};font-weight:700">{counts[k]} {k}</span>'
+                    for k in ("PASS", "WARN", "FAIL")
+                )
+            ),
+            self._section("Runtime checks"),
+        ]
+        for check in report["checks"]:
+            widgets.append(self._audit_row(check["status"], check["name"], check["detail"], check.get("evidence", "")))
+        static = report["static"]
+        widgets.append(self._section("Static analysis (build time)"))
+        widgets.append(self._audit_row(static.get("status", "WARN"), "Summary", static.get("summary", ""),
+                                       static.get("generated", "")))
+        for tool in static.get("tools", []):
+            widgets.append(self._audit_row(tool.get("status", "WARN"), tool.get("name", "tool"),
+                                           tool.get("summary", ""), "\n".join(tool.get("findings", [])[:12])))
+        rerun = QPushButton("Run audit again")
+        rerun.clicked.connect(self.show_audit)
+        widgets.append(rerun)
+        widgets.append(self._link(f'Method and history: <a href="{GITHUB_URL}/blob/main/AUDIT.md">AUDIT.md on GitHub</a>'))
+        self._wrap(*widgets)
+        self.title_changed.emit("Security audit")
+
+    def _audit_row(self, status: str, name: str, detail: str, evidence: str) -> QFrame:
+        frame = QFrame()
+        frame.setStyleSheet(
+            f"QFrame {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 10px; }}"
+            "QLabel { border: 0; background: transparent; }"
+        )
+        row = QHBoxLayout(frame)
+        row.setContentsMargins(12, 10, 12, 10)
+        badge = QLabel(status)
+        color = STATUS_COLORS.get(status, MUTED)
+        badge.setFixedWidth(52)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        badge.setStyleSheet(
+            f"color: #0e1116; background: {color}; border-radius: 6px; font-weight: 700; font-size: 11px; padding: 3px;"
+        )
+        col = QVBoxLayout()
+        title = QLabel(name)
+        title.setStyleSheet(f"font-weight: 650; color: {TEXT};")
+        body = QLabel(detail)
+        body.setWordWrap(True)
+        body.setStyleSheet(f"color: {TEXT}; font-size: 13px;")
+        col.addWidget(title)
+        col.addWidget(body)
+        if evidence:
+            ev = QLabel(evidence)
+            ev.setWordWrap(True)
+            ev.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            ev.setStyleSheet(f"color: {MUTED}; font-size: 11px;")
+            col.addWidget(ev)
+        row.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
+        row.addLayout(col, 1)
+        return frame
+
+    def show_settings(self) -> None:
+        self.current = "superwebby://settings"
+        settings = self.window.settings
+        widgets: list[QWidget] = [
+            self._h1("Settings"),
+            self._sub("No wizard. Change anything here whenever you like; it saves instantly."),
+            self._section("Favorite sites"),
+            self._sub(
+                "Tell Superwebby your favorite sites. They are pinned on the start page, get any known "
+                "site fixes automatically, and you can switch off dark mode, the cookie janitor, or "
+                "strict blocking just for them if something breaks."
+            ),
+        ]
+        add_row = QWidget()
+        hl = QHBoxLayout(add_row)
+        hl.setContentsMargins(0, 0, 0, 0)
+        field = QLineEdit()
+        field.setObjectName("omnibox")
+        field.setPlaceholderText("Your favorite site, e.g. music.youtube.com")
+        add_btn = QPushButton("Add favorite")
+
+        def add() -> None:
+            if settings.add_favorite(field.text()):
+                settings.save()
+                self.window.settings_changed()
+                self.show_settings()
+
+        field.returnPressed.connect(add)
+        add_btn.clicked.connect(add)
+        hl.addWidget(field, 1)
+        hl.addWidget(add_btn)
+        widgets.append(add_row)
+        if not settings.favorites:
+            widgets.append(self._sub("No favorites yet."))
+        for fav in list(settings.favorites):
+            widgets.append(self._favorite_row(fav))
+        widgets.append(self._section("Speed"))
+        speed = QCheckBox("High Speed mode")
+        speed.setChecked(settings.high_speed)
+        speed.toggled.connect(self.window.set_high_speed)
+        widgets.append(speed)
+        widgets.append(self._sub("Instant startup (background tabs load when you open them), core ad/tracker "
+                                 "list only, no cookie janitor, DNS prefetch on. YouTube and YouTube Music ads "
+                                 "stay blocked."))
+        widgets.append(self._section("More"))
+        widgets.append(self._link(
+            '<a href="superwebby://audit">Security audit</a> &nbsp;·&nbsp; '
+            '<a href="superwebby://about">About</a> &nbsp;·&nbsp; '
+            f'<a href="{GITHUB_URL}">GitHub</a>'
+        ))
+        widgets.append(self._sub(f"Settings file: {settings.path()}"))
+        self._wrap(*widgets)
+        self.title_changed.emit("Settings")
+
+    def _favorite_row(self, fav) -> QFrame:
+        settings = self.window.settings
+        frame = QFrame()
+        frame.setStyleSheet(f"QFrame {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 10px; }}"
+                            "QLabel, QCheckBox { border: 0; background: transparent; }")
+        col = QVBoxLayout(frame)
+        col.setContentsMargins(12, 10, 12, 10)
+        top = QHBoxLayout()
+        name = QLabel("★ " + fav.host)
+        name.setStyleSheet(f"font-weight: 650; color: {TEXT};")
+        remove = QPushButton("Remove")
+
+        def drop() -> None:
+            settings.remove_favorite(fav.host)
+            settings.save()
+            self.window.settings_changed()
+            self.show_settings()
+
+        remove.clicked.connect(drop)
+        top.addWidget(name, 1)
+        top.addWidget(remove)
+        col.addLayout(top)
+        opts = QGridLayout()
+        for idx, (key, label) in enumerate((("pinned", "Pin on start page"), ("no_dark", "No dark mode"),
+                                            ("no_janitor", "No cookie janitor"), ("relaxed", "Relaxed blocking"))):
+            box = QCheckBox(label)
+            box.setChecked(bool(getattr(fav, key)))
+
+            def toggled(on: bool, k=key) -> None:
+                setattr(fav, k, bool(on))
+                settings.save()
+                self.window.settings_changed()
+
+            box.toggled.connect(toggled)
+            opts.addWidget(box, idx // 2, idx % 2)
+        col.addLayout(opts)
+        return frame
 
     def show_shield(self) -> None:
         self.current = "superwebby://shield"

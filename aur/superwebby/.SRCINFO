@@ -1,6 +1,6 @@
 pkgbase = superwebby
-	pkgdesc = Painless privacy-first desktop web browser with a real Ctrl+J downloads panel
-	pkgver = 1.0.0
+	pkgdesc = Painless privacy-first web browser: Ctrl+J downloads, YouTube ad blocking, High Speed mode, security audit
+	pkgver = 1.1.0
 	pkgrel = 1
 	url = https://github.com/superwebby/superwebby
 	arch = any
@@ -9,7 +9,7 @@ pkgbase = superwebby
 	depends = python-pyqt6
 	depends = python-pyqt6-webengine
 	depends = qt6-webengine
-	source = superwebby-1.0.0.tar.gz::https://github.com/superwebby/superwebby/releases/download/v1.0.0/superwebby-1.0.0.tar.gz
-	sha256sums = af96ee974b4f8d5ea199eaa44283fe92907727b7c97f8d561fdd17c2ebbbad01
+	source = superwebby-1.1.0.tar.gz::https://github.com/superwebby/superwebby/releases/download/v1.1.0/superwebby-1.1.0.tar.gz
+	sha256sums = c29b2e8fdf38df94fd95c01e4e7e2fe0a9704adf51188a9172f9dcbbff8486a4
 
 pkgname = superwebby

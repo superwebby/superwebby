@@ -8,7 +8,10 @@ NAME="superwebby-${VERSION}-x86_64"
 DEST="$OUTDIR/$NAME"
 TARBALL="${2:-$ROOT/packaging/${NAME}.tar.gz}"
 
-python3 -m pip install --user --break-system-packages 'pyinstaller>=6,<7' >/tmp/pyinstaller-install.log
+PY="${PYTHON:-python3}"
+if ! "$PY" -c 'import PyInstaller' 2>/dev/null; then
+  "$PY" -m pip install 'pyinstaller>=6,<7' >/tmp/pyinstaller-install.log
+fi
 
 WORKDIR="$OUTDIR/pyi-build"
 rm -rf "$WORKDIR" "$DEST"
@@ -16,7 +19,7 @@ mkdir -p "$WORKDIR" "$DEST"
 
 # PyInstaller must run from the project root so imports resolve.
 cd "$ROOT"
-python3 -m PyInstaller \
+"$PY" -m PyInstaller \
   --noconfirm --clean --onedir --strip --name superwebby \
   --noupx \
   --paths "$ROOT" \

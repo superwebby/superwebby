@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")"
 MANIFEST=io.github.superwebby.Superwebby.yaml
 APP_ID=io.github.superwebby.Superwebby
-BUNDLE=superwebby-1.0.0.flatpak
+BUNDLE=superwebby-$(tr -d "[:space:]" < ../VERSION).flatpak
 WORK=builder-work
 REPO=ostree-repo
 

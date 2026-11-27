@@ -99,11 +99,23 @@ def _parse(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--screenshot", metavar="PATH", help="After load, write a window screenshot to PATH")
     parser.add_argument("--offscreen", action="store_true", help="Use the offscreen Qt platform")
     parser.add_argument("--no-restore", action="store_true", help="Do not restore the previous session")
+    parser.add_argument("--high-speed", action="store_true", help="Start in High Speed mode (core blocklist, no janitor, prefetch on)")
+    parser.add_argument("--add-favorite", metavar="SITE", action="append", help="Save a favorite site (pinned + per-site fixes) and exit")
+    parser.add_argument("--audit", action="store_true", help="Print the security audit as JSON and exit")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse(list(sys.argv[1:] if argv is None else argv))
+    from superwebby.settings import Settings
+
+    if args.add_favorite:
+        settings = Settings.load()
+        for site in args.add_favorite:
+            fav = settings.add_favorite(site)
+            print(f"favorite saved: {fav.host}" if fav else f"not a site: {site}")
+        settings.save()
+        return 0
     if args.self_test:
         tmp = tempfile.mkdtemp(prefix="superwebby-selftest-")
         os.environ["XDG_DATA_HOME"] = tmp
@@ -146,14 +158,25 @@ def main(argv: list[str] | None = None) -> int:
     from superwebby.history import HistoryStore
     from superwebby.window import BrowserWindow, interpret_input
 
-    blocker = Blocker()
+    settings = Settings.load()
+    if args.high_speed:
+        settings.high_speed = True
+    blocker = Blocker(high_speed=settings.high_speed)
+    blocker.relaxed_for = lambda host: settings.tweaks_for(host)["relaxed"]
     from superwebby.web import create_profile
 
-    profile = create_profile(blocker, incognito=args.incognito)
+    profile = create_profile(blocker, incognito=args.incognito, settings=settings)
     store_path = data_home() / "history.sqlite"
     history = HistoryStore(store_path, enabled=not args.incognito)
 
-    window = BrowserWindow(profile, blocker, history, icon, incognito=args.incognito)
+    window = BrowserWindow(profile, blocker, history, icon, incognito=args.incognito, settings=settings)
+    if args.audit:
+        import json
+
+        from superwebby.audit import run_audit
+
+        print(json.dumps(run_audit(window), indent=2, default=str))
+        return 0
     window.show()
 
     startup = None
@@ -265,6 +288,63 @@ h1{color:#ff6b3d} .ok{color:#3dd68c}</style></head>
         if not window.palette.isVisible():
             errors.append("command palette did not open")
         window.palette.hide_palette()
+        # 1.1: YouTube / YouTube Music ad rules (always on, also in High Speed)
+        yt_cases = [
+            "https://music.youtube.com/api/stats/ads?ver=2",
+            "https://www.youtube.com/pagead/viewthroughconversion/1",
+            "https://www.youtube.com/ptracking?pltype=adhost",
+            "https://music.youtube.com/youtubei/v1/player/ad_break?key=x",
+            "https://rr1---sn-x.googlevideo.com/videoplayback?id=1&oad=1",
+            "https://rr1---sn-x.googlevideo.com/videoplayback?id=1&ctier=L",
+            "https://googleads.g.doubleclick.net/pagead/id",
+        ]
+        for mode in (False, True):
+            blocker.set_high_speed(mode)
+            for case in yt_cases:
+                if not blocker.would_block(case):
+                    errors.append(f"YouTube ad rule missed (high_speed={mode}): {case}")
+            if blocker.would_block("https://rr1---sn-x.googlevideo.com/videoplayback?id=1&itag=251"):
+                errors.append("normal googlevideo stream wrongly blocked")
+            if blocker.would_block("https://music.youtube.com/youtubei/v1/player?key=x"):
+                errors.append("YouTube player API wrongly blocked")
+        if len(blocker.core_domains) >= len(blocker.full_domains):
+            errors.append("core list should be smaller than the full list")
+        blocker.set_high_speed(False)
+        # 1.1: menu has Dirty Browser and High Speed
+        labels = [a.text() for a in window.main_menu.actions()]
+        if "Dirty Browser" not in labels:
+            errors.append("Dirty Browser menu item missing")
+        if "High Speed" not in labels:
+            errors.append("High Speed menu item missing")
+        dirty = window.open_dirty_browser()
+        if not dirty.incognito or not dirty.profile.isOffTheRecord():
+            errors.append("Dirty Browser did not open an off-the-record window")
+        dirty.close()
+        window.set_high_speed(True)
+        if not blocker.high_speed or not window.speed_action.isChecked():
+            errors.append("High Speed toggle did not apply")
+        names = [sc.name() for sc in window.profile.scripts().toList()]
+        if "superwebby-cookie-janitor" in names:
+            errors.append("janitor should be off in High Speed mode")
+        if "superwebby-youtube-adblock" not in names:
+            errors.append("YouTube userscript missing in High Speed mode")
+        window.set_high_speed(False)
+        names = [sc.name() for sc in window.profile.scripts().toList()]
+        if "superwebby-cookie-janitor" not in names or "superwebby-youtube-adblock" not in names:
+            errors.append("scripts not restored after leaving High Speed mode")
+        # 1.1: favorites + audit
+        fav = window.settings.add_favorite("https://www.Docs.Google.com/document")
+        if fav is None or fav.host != "docs.google.com" or not fav.no_dark:
+            errors.append("favorite site normalization / built-in fix failed")
+        window.settings.remove_favorite("docs.google.com")
+        from superwebby.audit import run_audit
+
+        report = run_audit(window)
+        results["audit"] = report["counts"]
+        if len(report["checks"]) < 8:
+            errors.append("audit returned too few checks")
+        window.navigate("superwebby://audit")
+        window.navigate("superwebby://settings")
         # Omnibox + shortcuts wiring
         if window.omnibox is None:
             errors.append("omnibox missing")
@@ -273,7 +353,7 @@ h1{color:#ff6b3d} .ok{color:#3dd68c}</style></head>
         if not window.downloads.isVisible():
             window.toggle_downloads()
         window.setWindowTitle("Superwebby")
-        shot = screenshot or str(Path("/tmp/superwebby-selftest.png"))
+        shot = screenshot or str(Path(tempfile.gettempdir()) / "superwebby-selftest.png")
         try:
             pix = window.grab()
             Path(shot).parent.mkdir(parents=True, exist_ok=True)
@@ -300,7 +380,8 @@ h1{color:#ff6b3d} .ok{color:#3dd68c}</style></head>
     if results.get("ok"):
         print(
             f"SUPERWEBBY SELF-TEST OK  domains={results.get('domains')} "
-            f"blocked_session={results.get('blocked_total')}  screenshot={results.get('screenshot')}"
+            f"blocked_session={results.get('blocked_total')}  audit={results.get('audit')}  "
+            f"screenshot={results.get('screenshot')}"
         )
         return 0
     print("SUPERWEBBY SELF-TEST FAILED")

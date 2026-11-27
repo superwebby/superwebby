@@ -14,6 +14,7 @@ from PyQt6.QtWebEngineCore import (
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import QMenu
 
+from superwebby import __version__
 from superwebby.paths import bundled_cookie_js, cache_home, downloads_dir, profile_dir
 
 
@@ -46,37 +47,68 @@ def register_scheme() -> None:
     QWebEngineUrlScheme.registerScheme(scheme)
 
 
-def _inject_scripts(profile: QWebEngineProfile, cookie_janitor: bool) -> None:
+SCRIPT_NAMES = ("superwebby-cookie-janitor", "superwebby-color-scheme", "superwebby-youtube-adblock")
+
+
+def _host_guard(hosts: list[str]) -> str:
+    """JS prelude that returns early on the given hosts (and their subdomains)."""
+    import json
+
+    return (
+        "var __swSkip = %s; var __swH = location.hostname.replace(/^www\\./, '');"
+        "for (var __i = 0; __i < __swSkip.length; __i++) {"
+        "  var __d = __swSkip[__i];"
+        "  if (__swH === __d || __swH.slice(-(__d.length + 1)) === '.' + __d) return;"
+        "}" % json.dumps(hosts)
+    )
+
+
+def _script(name: str, source: str, point, subframes: bool = True) -> QWebEngineScript:
+    script = QWebEngineScript()
+    script.setName(name)
+    script.setSourceCode(source)
+    script.setInjectionPoint(point)
+    script.setRunsOnSubFrames(subframes)
+    script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
+    return script
+
+
+def refresh_scripts(profile: QWebEngineProfile, settings=None) -> None:
+    """(Re)install injected scripts. Safe to call whenever settings change."""
     collection = profile.scripts()
-    if cookie_janitor:
+    for name in SCRIPT_NAMES:
+        for existing in collection.find(name):
+            collection.remove(existing)
+    high_speed = bool(settings and settings.high_speed)
+    no_janitor = settings.hosts_with("no_janitor") if settings else []
+    no_dark = settings.hosts_with("no_dark") if settings else []
+    # YouTube / YouTube Music ad removal: every build, every mode.
+    from superwebby.youtube import userscript_source
+
+    yt = userscript_source()
+    if yt:
+        collection.insert(
+            _script("superwebby-youtube-adblock", yt, QWebEngineScript.InjectionPoint.DocumentCreation, False)
+        )
+    # Cookie-banner janitor: off in High Speed mode, skipped on exempt sites.
+    if not high_speed:
         js_path = bundled_cookie_js()
         if js_path.is_file():
-            script = QWebEngineScript()
-            script.setName("superwebby-cookie-janitor")
-            script.setSourceCode(js_path.read_text(encoding="utf-8"))
-            script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentReady)
-            script.setRunsOnSubFrames(True)
-            script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
-            collection.insert(script)
-    # Quiet the viewport and respect our dark chrome without site nags.
-    css = QWebEngineScript()
-    css.setName("superwebby-color-scheme")
-    css.setSourceCode(
-        """
-        (function () {
-          try {
-            document.documentElement.style.colorScheme = "dark";
-          } catch (e) {}
-        })();
-        """
+            body = js_path.read_text(encoding="utf-8")
+            source = "(function(){" + _host_guard(no_janitor) + "\n" + body + "\n})();"
+            collection.insert(
+                _script("superwebby-cookie-janitor", source, QWebEngineScript.InjectionPoint.DocumentReady)
+            )
+    css = (
+        "(function () {" + _host_guard(no_dark) +
+        " try { document.documentElement.style.colorScheme = 'dark'; } catch (e) {} })();"
     )
-    css.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
-    css.setRunsOnSubFrames(True)
-    css.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
-    collection.insert(css)
+    collection.insert(
+        _script("superwebby-color-scheme", css, QWebEngineScript.InjectionPoint.DocumentCreation)
+    )
 
 
-def apply_settings(settings: QWebEngineSettings) -> None:
+def apply_settings(settings: QWebEngineSettings, high_speed: bool = False) -> None:
     attr = QWebEngineSettings.WebAttribute
     settings.setAttribute(attr.JavascriptEnabled, True)
     settings.setAttribute(attr.JavascriptCanOpenWindows, True)
@@ -84,7 +116,8 @@ def apply_settings(settings: QWebEngineSettings) -> None:
     settings.setAttribute(attr.ErrorPageEnabled, True)
     settings.setAttribute(attr.FullScreenSupportEnabled, True)
     settings.setAttribute(attr.PluginsEnabled, False)
-    settings.setAttribute(attr.DnsPrefetchEnabled, False)
+    # High Speed mode turns DNS prefetch on; normal mode keeps it off for privacy.
+    settings.setAttribute(attr.DnsPrefetchEnabled, bool(high_speed))
     settings.setAttribute(attr.HyperlinkAuditingEnabled, False)
     settings.setAttribute(attr.XSSAuditingEnabled, True)
     settings.setAttribute(attr.FocusOnNavigationEnabled, False)
@@ -98,7 +131,7 @@ def apply_settings(settings: QWebEngineSettings) -> None:
         settings.setAttribute(attr.AllowGeolocationOnInsecureOrigins, False)
 
 
-def create_profile(blocker, incognito: bool = False) -> QWebEngineProfile:
+def create_profile(blocker, incognito: bool = False, settings=None) -> QWebEngineProfile:
     if incognito:
         profile = QWebEngineProfile(None)
     else:
@@ -128,14 +161,38 @@ def create_profile(blocker, incognito: bool = False) -> QWebEngineProfile:
         profile.setDownloadPath(str(downloads_dir()))
     except Exception:
         pass
-    apply_settings(profile.settings())
+    profile._superwebby_settings = settings
+    _install_cookie_filter(profile, settings)
+    apply_settings(profile.settings(), high_speed=bool(settings and settings.high_speed))
     profile.setUrlRequestInterceptor(blocker)
-    _inject_scripts(profile, cookie_janitor=True)
+    refresh_scripts(profile, settings)
     # Keep a normal Chromium-family UA so sites work, but don't spoof Brave/Chrome brands.
     ua = profile.httpUserAgent()
     if "Superwebby" not in ua:
-        profile.setHttpUserAgent(ua.replace("QtWebEngine", "Superwebby") + " Superwebby/1.0")
+        profile.setHttpUserAgent(ua.replace("QtWebEngine", "Superwebby") + " Superwebby/" + __version__)
     return profile
+
+
+def _install_cookie_filter(profile: QWebEngineProfile, settings) -> None:
+    """Refuse third-party cookies, except on favorite sites marked "relaxed"."""
+
+    def accept(request) -> bool:
+        try:
+            if not request.thirdParty:
+                return True
+            if settings is not None:
+                first = request.firstPartyUrl.host()
+                if first and settings.tweaks_for(first)["relaxed"]:
+                    return True
+            return False
+        except Exception:
+            return True
+
+    try:
+        profile.cookieStore().setCookieFilter(accept)
+        profile._superwebby_cookie_filter = accept  # keep a reference alive
+    except Exception:
+        profile._superwebby_cookie_filter = None
 
 
 class WebPage(QWebEnginePage):
@@ -183,7 +240,23 @@ class WebPage(QWebEnginePage):
         super().javaScriptAlert(security_origin, msg)
 
     def acceptNavigationRequest(self, url: QUrl, nav_type, is_main_frame: bool) -> bool:  # noqa: N802
+        if is_main_frame:
+            self._apply_site_tweaks(url)
         return True
+
+    def _apply_site_tweaks(self, url: QUrl) -> None:
+        """Per-site fixes: turn forced dark mode off where it breaks a site."""
+        settings = getattr(self.profile(), "_superwebby_settings", None)
+        if settings is None:
+            return
+        attr = QWebEngineSettings.WebAttribute
+        if not hasattr(attr, "ForceDarkMode"):
+            return
+        tweaks = settings.tweaks_for(url.host())
+        try:
+            self.settings().setAttribute(attr.ForceDarkMode, not tweaks["no_dark"])
+        except Exception:
+            pass
 
 
 class WebView(QWebEngineView):

@@ -1,5 +1,6 @@
 # Superwebby compiled ad/tracker domain blocklist
 # Generated for reproducible offline startup. One domain per line.
+# Version: 2026.11.24 (compiled for 1.0.0, shipped unchanged in 1.1.0)
 # A domain entry also matches all subdomains.
 #
 # Compiled from the following public sources (see data/NOTICE for licenses):

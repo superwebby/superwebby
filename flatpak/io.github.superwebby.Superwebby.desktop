@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Superwebby
 GenericName=Web Browser
-Comment=Painless privacy-first web browser with a real Ctrl+J downloads panel
+Comment=Painless privacy-first web browser with a real Ctrl+J downloads panel, High Speed mode and YouTube ad blocking
 Exec=superwebby %U
 Icon=io.github.superwebby.Superwebby
 Terminal=false
@@ -10,13 +10,18 @@ Categories=Network;WebBrowser;
 MimeType=text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;
 StartupNotify=true
 StartupWMClass=Superwebby
-Keywords=Internet;WWW;Browser;Web;Privacy;
-Actions=NewWindow;NewPrivateWindow;
+Keywords=Internet;WWW;Browser;Web;Privacy;Adblock;YouTube;Private;
+X-Homepage=https://github.com/superwebby/superwebby
+Actions=NewWindow;NewPrivateWindow;HighSpeed;
 
 [Desktop Action NewWindow]
 Name=New Window
 Exec=superwebby
 
 [Desktop Action NewPrivateWindow]
-Name=New Private Window
+Name=Dirty Browser (Private Window)
 Exec=superwebby --incognito
+
+[Desktop Action HighSpeed]
+Name=High Speed Mode
+Exec=superwebby --high-speed

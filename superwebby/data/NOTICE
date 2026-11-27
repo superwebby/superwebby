@@ -19,6 +19,14 @@ The compiled domain list in blocklist.txt is derived from:
    License: Creative Commons Attribution-ShareAlike 3.0 Unported (CC BY-SA 3.0)
    https://creativecommons.org/licenses/by-sa/3.0/
 
+blocklist-core.txt (High Speed mode) is Peter Lowe's ad server list as
+fetched on 2026-11-27 plus a short hand-picked set of major ad/analytics
+hosts.
+
+chromium_releases.json is Chrome's public milestone schedule from
+https://chromiumdash.appspot.com, used offline by the security audit to date
+the engine's security-patch level.
+
 Superwebby ships a compiled set of hostnames (one domain per line) for
 offline request interception. It is not a verbatim copy of the original
 filter-list files. If you redistribute Superwebby, retain this NOTICE.

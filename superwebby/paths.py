@@ -18,6 +18,10 @@ def bundled_blocklist() -> Path:
     return data_dir() / "blocklist.txt"
 
 
+def bundled_core_blocklist() -> Path:
+    return data_dir() / "blocklist-core.txt"
+
+
 def bundled_cookie_js() -> Path:
     return data_dir() / "cookie_banner.js"
 

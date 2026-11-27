@@ -1,17 +1,88 @@
-# Superwebby
+<p align="center">
+  <img src="assets/superwebby-256.png" width="160" alt="Superwebby logo: a flower in a rifle's barrel over a peace sign made of people holding hands">
+</p>
 
-A painless, privacy-first desktop web browser. It is a new browser — not a
-repackaged Ladybird, qutebrowser, or surf build — with a real **Ctrl+J
-downloads panel** the way Brave used to work, then pushed further so everyday
-browsing stays out of your way.
+<h1 align="center">Superwebby</h1>
+
+<p align="center">
+  <b>A painless, privacy-first desktop web browser.</b><br>
+  Ctrl+J downloads shelf · YouTube &amp; YouTube Music ad blocking · Dirty Browser private windows · High Speed mode · live security audit<br>
+  <b>GitHub:</b> <a href="https://github.com/superwebby/superwebby">https://github.com/superwebby/superwebby</a> ·
+  <a href="https://github.com/superwebby/superwebby/releases/latest">Latest release</a> ·
+  <a href="AUDIT.md">Security audit</a>
+</p>
+
+## Install in one line
+
+**Flatpak (any distro):**
+
+```bash
+curl -LO https://github.com/superwebby/superwebby/releases/download/v1.1.0/superwebby-1.1.0.flatpak && flatpak install --user -y ./superwebby-1.1.0.flatpak && flatpak run io.github.superwebby.Superwebby
+```
+
+(Needs the Flathub remote for the KDE 6.11 runtime: `flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo`.)
+
+**Arch Linux, prebuilt binary (`superwebby-bin`):**
+
+```bash
+mkdir -p superwebby-bin && cd superwebby-bin && curl -L --remote-name-all https://raw.githubusercontent.com/superwebby/superwebby/main/aur/superwebby-bin/{PKGBUILD,superwebby.desktop,LICENSE} && makepkg -si
+```
+
+**Arch Linux, from source (`superwebby`):**
+
+```bash
+git clone https://github.com/superwebby/superwebby.git && cd superwebby/aur/superwebby && makepkg -si
+```
+
+All release files and their SHA256SUMS: <https://github.com/superwebby/superwebby/releases/tag/v1.1.0>
+
+## Screenshots
+
+| Main menu: Dirty Browser and High Speed | Security audit | Favorite sites |
+| --- | --- | --- |
+| ![Menu](docs/screenshot-menu.png) | ![Audit](docs/screenshot-audit.png) | ![Settings](docs/screenshot-settings.png) |
+
+## About
+
+Superwebby is a new browser — not a repackaged Ladybird, qutebrowser, or surf
+build — with a real **Ctrl+J downloads panel** the way Brave used to work,
+then pushed further so everyday browsing stays out of your way.
 
 Superwebby uses **Python 3 + PyQt6 / Qt WebEngine** so it actually builds and
 renders modern pages, then wraps its own chrome, shortcuts, blocking, and
 internal pages around that engine.
 
-The Flatpak application ID is `io.github.superwebby.Superwebby`. That
-GitHub-style namespace is a placeholder and is easy to rename later in the
-manifest, desktop file, metainfo, and icon filenames together.
+The logo is a flower growing out of a rifle's barrel, standing in for the
+centre stroke of a giant peace sign made of people holding hands. It is a
+peace / anti-violence image ("flower power"), not a weapons one.
+
+## New in 1.1.0
+
+- **Favorite sites.** Add them in `superwebby://settings` (a quiet field, no
+  wizard) or with `superwebby --add-favorite music.youtube.com`. Favorites are
+  pinned on the start page, pick up built-in site fixes automatically, and each
+  one has switches for *no dark mode*, *no cookie janitor*, and *relaxed
+  blocking* (core list only and third-party cookies allowed, for logins and
+  players). Builds can be personalized with `packaging/bake-favorites.py`.
+- **Security audit panel.** `superwebby://audit`, the **Audit** toolbar button,
+  or *Menu → Security Audit*. Live checks against the running build: telemetry
+  endpoints, blocklist size and version, Chromium sandbox, HTTPS upgrade,
+  third-party cookies, WebRTC IP leak, fingerprinting, and the Qt WebEngine /
+  Chromium patch level with CVE age, plus build-time bandit and pip-audit
+  results. Warnings and failures are shown as they are. See [AUDIT.md](AUDIT.md).
+- **YouTube and YouTube Music ad blocking in every build** (Flatpak, AUR source,
+  AUR binary): network rules for ad endpoints (`doubleclick`, `/pagead/`,
+  `/api/stats/ads`, `/ptracking`, `youtubei/v1/player/ad_break`, and ad streams
+  on `googlevideo.com` marked `&oad=`, `ctier=L`, or `adformat`) plus an injected
+  script that strips `adPlacements` / `playerAds` from player responses, hides
+  ad slots, and skips anything that still plays. Always on, even in High Speed mode.
+- **Dirty Browser.** *Menu → Dirty Browser* (also in the Ctrl+K palette and
+  Ctrl+Shift+N) opens a private, off-the-record window.
+- **High Speed mode.** *Menu → High Speed*, the ⚡ toolbar button, or
+  `superwebby --high-speed`: instant startup (background tabs load when you
+  open them), the core ad/tracker list only (~3.6k domains instead of ~124k),
+  no cookie janitor, DNS prefetch on. YouTube ad blocking stays on.
+- **New logo** and a GitHub link on `superwebby://about`.
 
 ## Why it exists
 
@@ -42,9 +113,9 @@ rest of the usual browser friction:
 - Cookie-banner janitor for common CMPs (OneTrust, Cookiebot, Quantcast,
   Didomi, Funding Choices, CookieYes, Osano, and others)
 - Permission popups are denied quietly (clipboard paste is still allowed)
-- Third-party cookies are phased out via Chromium flags
-- Private windows (`--incognito`) write nothing to the profile
-- Internal pages: `superwebby://newtab`, `history`, `downloads`, `about`, `shield`
+- Third-party cookies are refused by a cookie-store filter (plus Chromium's phase-out flag)
+- Dirty Browser private windows (menu, Ctrl+Shift+N, or `--incognito`) write nothing to disk
+- Internal pages: `superwebby://newtab`, `history`, `downloads`, `about`, `shield`, `audit`, `settings`
 
 Blocking uses a compiled, offline list derived from Peter Lowe’s ad server
 list, StevenBlack/hosts (MIT), and EasyList / EasyPrivacy ad- and tracking-
@@ -74,71 +145,44 @@ shipped in the source tree so startup never needs a network fetch.
 | Alt+Left / Alt+Right | Back / forward |
 | Alt+Home | New tab page |
 | Ctrl+N | New window |
+| Ctrl+Shift+N | Dirty Browser (private window) |
 | F11 | Fullscreen |
 | Escape | Close palette, find bar, or panel; stop load |
 | Ctrl+Q / Ctrl+Shift+W | Quit window |
 
-## Install the Flatpak
+## Build it yourself
 
-You need [Flatpak](https://flatpak.org/setup/) and the Flathub remote (for the
-KDE Platform 6.11 runtime):
-
-```bash
-flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-```
-
-Download the bundle from the v1.0.0 GitHub release, then install it:
+Flatpak bundle (needs `flatpak` and `flatpak-builder`):
 
 ```bash
-curl -L -o superwebby-1.0.0.flatpak https://github.com/superwebby/superwebby/releases/download/v1.0.0/superwebby-1.0.0.flatpak
-flatpak install --user ./superwebby-1.0.0.flatpak
-flatpak run io.github.superwebby.Superwebby
-```
-
-Build the bundle from this tree (needs `flatpak` and `flatpak-builder`):
-
-```bash
-cd flatpak
-./build-bundle.sh
+cd flatpak && ./build-bundle.sh
 ```
 
 The Flatpak uses `org.kde.Platform` 6.11 and
 `com.riverbankcomputing.PyQt.BaseApp` 6.11, which already includes PyQt6 and
 Qt WebEngine.
 
-## Install on Arch Linux (PKGBUILD)
-
-You need `base-devel` (`sudo pacman -S --needed base-devel`). This repo ships
-two PKGBUILDs; `makepkg -si` pulls in the dependencies and fetches the v1.0.0
-release tarball.
-
-From source:
+Release tarballs and the stripped PyInstaller binary:
 
 ```bash
-git clone https://github.com/superwebby/superwebby.git
-cd superwebby/aur/superwebby
-makepkg -si
-superwebby
+packaging/run-static-audit.sh        # bandit + pip-audit -> superwebby/data/static_audit.json
+packaging/build-source-tarball.sh
+packaging/build-bin.sh
 ```
 
-Or the prebuilt binary package:
-
-```bash
-git clone https://github.com/superwebby/superwebby.git
-cd superwebby/aur/superwebby-bin
-makepkg -si
-superwebby
-```
-
-Until the AUR itself accepts new accounts, these are AUR-style PKGBUILDs in
-this repository, not packages already listed on aur.archlinux.org.
+The AUR-style PKGBUILDs live in `aur/superwebby` and `aur/superwebby-bin`.
+Until the AUR accepts new accounts again, they are published here rather than
+on aur.archlinux.org.
 
 ## Running from this tree
 
 ```bash
 python3 superwebby-run
 python3 superwebby-run https://example.com
-python3 superwebby-run --incognito
+python3 superwebby-run --incognito          # Dirty Browser
+python3 superwebby-run --high-speed
+python3 superwebby-run --add-favorite music.youtube.com
+python3 superwebby-run --audit               # print the security audit as JSON
 python3 superwebby-run --self-test --screenshot /tmp/superwebby.png
 ```
 
@@ -159,7 +203,7 @@ Qt WebEngine needs a working GL/DRI path to paint web pages. On a normal Arch
 desktop that just works. Some virtual framebuffers (Xvfb without DRI3, or
 environments with no `/dev/dri`) can leave the web view blank even though the
 page loaded, blocking ran, and the rest of the chrome is fine. Superwebby's
-own pages (`superwebby://newtab`, history, downloads, about, shield) are native
+own pages (`superwebby://newtab`, history, downloads, about, shield, audit, settings) are native
 widgets, so they still appear in that situation. `superwebby --self-test`
 checks blocking, the Ctrl+J panel, history, the palette, and writes a
 screenshot without requiring a GPU.

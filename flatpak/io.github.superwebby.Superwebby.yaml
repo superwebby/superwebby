@@ -52,6 +52,15 @@ modules:
     sources:
       - type: dir
         path: ..
+        skip:
+          - .git
+          - packaging/out
+          - packaging/superwebby-1.1.0.tar.gz
+          - packaging/superwebby-1.1.0-x86_64.tar.gz
+          - flatpak/builder-work
+          - flatpak/ostree-repo
+          - flatpak/.flatpak-builder
+          - docs
       - type: file
         path: io.github.superwebby.Superwebby.desktop
       - type: file

@@ -1,8 +1,8 @@
 # Maintainer: Ray Shaw
 pkgname=superwebby-bin
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=1
-pkgdesc="Painless privacy-first desktop web browser (prebuilt, stripped binary)"
+pkgdesc="Painless privacy-first web browser with YouTube ad blocking and High Speed mode (prebuilt, stripped binary)"
 arch=('x86_64')
 url="https://github.com/superwebby/superwebby"
 license=('GPL-3.0-or-later')
@@ -13,8 +13,8 @@ options=('!strip')
 source=("superwebby-${pkgver}-x86_64.tar.gz::https://github.com/superwebby/superwebby/releases/download/v${pkgver}/superwebby-${pkgver}-x86_64.tar.gz"
         "superwebby.desktop"
         "LICENSE")
-sha256sums=('882878522ffaa94507b2d21dd7aeb3229e3807fb014ec05d0fd60f500eff40e9'
-            '0e5c8dbda2a88375d7628a517aace2498f30e70b9835a471e35c42bcbb80cff0'
+sha256sums=('cd55dbe0e3c54e09ea25519c14012427b5505287a6d83740ac4cffb67d33550e'
+            'c1976063d27fec4a1717ece3a9d53136c8e1a5a2cbbabbd65b8c183dadd64b01'
             '3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986')
 
 package() {

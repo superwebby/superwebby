@@ -192,6 +192,7 @@ def about_html(block_count: int, domain_count: int) -> bytes:
     a command palette, and a real <kbd>Ctrl</kbd>+<kbd>J</kbd> downloads panel.
   </p>
   <p class="meta">Blocked this session: <strong>{block_count}</strong>. License: GPL-3.0-or-later.</p>
+  <p class="meta">Source, releases and issues: <a href="https://github.com/superwebby/superwebby">github.com/superwebby/superwebby</a></p>
 </div>
 """
     return _shell("About Superwebby", body)
@@ -216,6 +217,31 @@ def blocked_html(stats, page_url: str, total: int) -> bytes:
 </div>
 """
     return _shell("Shield", body)
+
+
+def audit_html(report: dict) -> bytes:
+    colors = {"PASS": "#3dd68c", "WARN": "#f2c94c", "FAIL": "#ff5c5c", "INFO": "#7c9cff"}
+    rows = []
+    for c in report["checks"]:
+        rows.append(
+            f"<tr><td style='color:{colors.get(c['status'], '#fff')};font-weight:700'>{escape(c['status'])}</td>"
+            f"<td><div class='title'>{escape(c['name'])}</div>{escape(c['detail'])}"
+            f"<div class='url'>{escape(c.get('evidence', ''))}</div></td></tr>"
+        )
+    static = report.get("static", {})
+    for t in static.get("tools", []):
+        rows.append(
+            f"<tr><td style='color:{colors.get(t.get('status'), '#fff')};font-weight:700'>{escape(t.get('status', ''))}</td>"
+            f"<td><div class='title'>{escape(t.get('name', ''))} (static)</div>{escape(t.get('summary', ''))}</td></tr>"
+        )
+    body = f"""
+<div class="wrap">
+  <h1>Security audit</h1>
+  <p class="meta">Superwebby {escape(report['version'])} · {escape(report['mode'])} mode · {escape(report['ran_at'])}</p>
+  <table><thead><tr><th>Result</th><th>Check</th></tr></thead><tbody>{''.join(rows)}</tbody></table>
+</div>
+"""
+    return _shell("Security audit", body)
 
 
 class SuperwebbySchemeHandler(QWebEngineUrlSchemeHandler):
@@ -258,7 +284,11 @@ class SuperwebbySchemeHandler(QWebEngineUrlSchemeHandler):
             stats = win.blocker.stats_for(url) if win else None
             total = win.blocker.total_blocked if win else 0
             return blocked_html(stats, url, total)
+        if name in {"audit", "security"} and win is not None:
+            from superwebby.audit import run_audit
+
+            return audit_html(run_audit(win))
         return _shell(
             "Unknown",
-            "<div class='wrap'><h1>Unknown page</h1><p class='meta'>Try superwebby://newtab, history, downloads, about, or shield.</p></div>",
+            "<div class='wrap'><h1>Unknown page</h1><p class='meta'>Try superwebby://newtab, history, downloads, about, audit, settings, or shield.</p></div>",
         )

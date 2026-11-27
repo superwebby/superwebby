@@ -10,6 +10,7 @@ from PyQt6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QShortcut
 from PyQt6.QtWebEngineCore import QWebEnginePage
 from PyQt6.QtWidgets import (
     QCompleter,
+    QMenu,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -36,6 +37,10 @@ from superwebby.theme import ACCENT, MUTED, TEXT
 from superwebby.web import WebPage, WebView
 
 NEWTAB = "superwebby://newtab"
+GITHUB_URL = "https://github.com/superwebby/superwebby"
+DIRTY_BROWSER = "Dirty Browser"
+HIGH_SPEED = "High Speed"
+_PRIVATE_PROFILE = None  # one shared off-the-record profile for Dirty Browser windows
 SEARCH = "https://duckduckgo.com/?q={query}"
 URLISH = re.compile(
     r"^(localhost(:\d+)?([/?#].*)?|"
@@ -115,13 +120,19 @@ class BrowserTab(QWidget):
 
 
 class BrowserWindow(QMainWindow):
-    def __init__(self, profile, blocker, history: HistoryStore, icon: QIcon, incognito: bool = False) -> None:
+    def __init__(self, profile, blocker, history: HistoryStore, icon: QIcon, incognito: bool = False, settings=None) -> None:
         super().__init__()
+        if settings is None:
+            from superwebby.settings import Settings
+
+            settings = Settings.load()
+        self.settings = settings
+        self._pending_urls: dict[int, str] = {}
         self.profile = profile
         self.blocker = blocker
         self.history = history
         self.incognito = incognito
-        self.setWindowTitle("Superwebby" + (" (Private)" if incognito else ""))
+        self.setWindowTitle("Superwebby" + (f" ({DIRTY_BROWSER} · Private)" if incognito else ""))
         self.setWindowIcon(icon)
         self.setMinimumSize(900, 600)
         self.resize(1280, 820)
@@ -203,12 +214,124 @@ class BrowserWindow(QMainWindow):
         self.shield_btn = tb("0", "Blocked requests on this page", self._open_shield)
         self.dl_btn = tb("↓", "Downloads  (Ctrl+J)", self.toggle_downloads, checkable=True)
         self.hist_btn = tb("Hist", "History  (Ctrl+H)", self.toggle_history, checkable=True)
+        self.audit_btn = tb("Audit", "Security audit  (superwebby://audit)", self.open_audit)
+        self.speed_btn = tb("⚡", "High Speed mode: core blocklist only, no janitor, prefetch on.\n"
+                            "YouTube ad blocking stays on.", lambda: self.set_high_speed(not self.settings.high_speed),
+                            checkable=True)
         tb("Cmd", "Command palette  (Ctrl+K)", self.open_palette)
+        self.menu_btn = QToolButton()
+        self.menu_btn.setText("☰")
+        self.menu_btn.setToolTip("Menu")
+        self.menu_btn.setAutoRaise(True)
+        self.menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.main_menu = self._build_main_menu()
+        self.menu_btn.setMenu(self.main_menu)
+        bar.addWidget(self.menu_btn)
+        self._sync_speed_ui()
 
         self._completer = QCompleter([])
         self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
         self.omnibox.setCompleter(self._completer)
+
+    def _build_main_menu(self) -> QMenu:
+        menu = QMenu(self)
+        menu.setObjectName("mainMenu")
+
+        def act(text: str, slot, shortcut: str = "", checkable: bool = False) -> QAction:
+            action = QAction(text, menu)
+            if shortcut:
+                action.setShortcut(QKeySequence(shortcut))
+                action.setShortcutVisibleInContextMenu(True)
+            action.setCheckable(checkable)
+            action.triggered.connect(slot)
+            menu.addAction(action)
+            return action
+
+        act("New Tab", lambda: self.open_tab(), "Ctrl+T")
+        act("New Window", self.new_window, "Ctrl+N")
+        self.dirty_action = act(DIRTY_BROWSER, self.open_dirty_browser, "Ctrl+Shift+N")
+        self.dirty_action.setToolTip("Private window: nothing saved to disk")
+        menu.addSeparator()
+        self.speed_action = act(HIGH_SPEED, lambda checked: self.set_high_speed(checked), checkable=True)
+        act("Security Audit", self.open_audit)
+        act("Settings && Favorite Sites", lambda: self.navigate("superwebby://settings"))
+        act("Shield (blocked requests)", self._open_shield)
+        menu.addSeparator()
+        act("Downloads", self.toggle_downloads, "Ctrl+J")
+        act("History", self.toggle_history, "Ctrl+H")
+        menu.addSeparator()
+        act("About Superwebby", lambda: self.navigate("superwebby://about"))
+        act("Superwebby on GitHub", lambda: self.open_tab(GITHUB_URL))
+        menu.addSeparator()
+        act("Quit", self.close, "Ctrl+Q")
+        return menu
+
+    # --- Dirty Browser / High Speed / audit ---------------------------
+    def open_dirty_browser(self) -> "BrowserWindow":
+        """Open a private (off-the-record) window. Nothing is written to disk."""
+        global _PRIVATE_PROFILE
+        from superwebby.web import create_profile
+
+        if self.incognito:
+            profile = self.profile
+        else:
+            if _PRIVATE_PROFILE is None:
+                _PRIVATE_PROFILE = create_profile(self.blocker, incognito=True, settings=self.settings)
+            profile = _PRIVATE_PROFILE
+        private_history = HistoryStore(None, enabled=False) if not self.incognito else self.history
+        win = BrowserWindow(profile, self.blocker, private_history, self.windowIcon(), True, settings=self.settings)
+        win.show()
+        win.open_tab()
+        self._siblings().append(win)
+        return win
+
+    def set_high_speed(self, on: bool) -> None:
+        on = bool(on)
+        self.settings.high_speed = on
+        try:
+            self.settings.save()
+        except OSError:
+            pass
+        self.blocker.set_high_speed(on)
+        from superwebby.web import apply_settings, refresh_scripts
+
+        profiles = {id(self.profile): self.profile}
+        if _PRIVATE_PROFILE is not None:
+            profiles[id(_PRIVATE_PROFILE)] = _PRIVATE_PROFILE
+        for profile in profiles.values():
+            refresh_scripts(profile, self.settings)
+            apply_settings(profile.settings(), high_speed=on)
+        from PyQt6.QtWidgets import QApplication
+
+        for win in QApplication.topLevelWidgets():
+            if not isinstance(win, BrowserWindow):
+                continue
+            try:
+                win._sync_speed_ui()
+            except RuntimeError:
+                pass
+
+    def _sync_speed_ui(self) -> None:
+        on = bool(self.settings.high_speed)
+        if hasattr(self, "speed_action"):
+            self.speed_action.blockSignals(True)
+            self.speed_action.setChecked(on)
+            self.speed_action.blockSignals(False)
+        if hasattr(self, "speed_btn"):
+            self.speed_btn.setChecked(on)
+            self.speed_btn.setText("⚡ High Speed" if on else "⚡")
+
+    def open_audit(self) -> None:
+        self.open_tab("superwebby://audit")
+
+    def settings_changed(self) -> None:
+        """Re-apply per-site tweaks after favorites change."""
+        from superwebby.web import refresh_scripts
+
+        refresh_scripts(self.profile, self.settings)
+        if _PRIVATE_PROFILE is not None and _PRIVATE_PROFILE is not self.profile:
+            refresh_scripts(_PRIVATE_PROFILE, self.settings)
 
     def _build_findbar(self) -> QFrame:
         frame = QFrame()
@@ -300,6 +423,8 @@ class BrowserWindow(QMainWindow):
         sc("Ctrl+Q", self.close)
         sc("Ctrl+Shift+W", self.close)
         sc("Ctrl+N", self.new_window)
+        sc("Ctrl+Shift+N", self.open_dirty_browser)
+        sc("Ctrl+Shift+P", self.open_dirty_browser)
         sc("F11", self.toggle_window_fullscreen)
         sc("Escape", self._escape)
         for n in range(1, 9):
@@ -412,6 +537,9 @@ class BrowserWindow(QMainWindow):
         tab = self.current_tab()
         if tab is None:
             return
+        pending = self._pending_urls.pop(id(tab), None)
+        if pending:
+            tab.go_internal_or_web(pending)
         self._sync_chrome(tab)
         self._refresh_shield()
 
@@ -421,7 +549,7 @@ class BrowserWindow(QMainWindow):
             self.tabs.setTabText(index, (title or "New Tab")[:48])
         tab = self.current_tab()
         if tab is not None and (widget is tab or widget is tab.view or widget is tab.internal):
-            suffix = " (Private)" if self.incognito else ""
+            suffix = f" ({DIRTY_BROWSER} · Private)" if self.incognito else ""
             self.setWindowTitle(f"{title or 'Superwebby'} — Superwebby{suffix}")
 
     def _icon_changed(self, widget: QWidget, icon: QIcon) -> None:
@@ -644,6 +772,16 @@ class BrowserWindow(QMainWindow):
         add("Hard reload", "Ctrl+Shift+R", "Command", self.hard_reload, "bypass cache")
         add("Find in page", "Ctrl+F", "Command", self.show_find, "search")
         add("New window", "Ctrl+N", "Command", self.new_window, "")
+        add(DIRTY_BROWSER, "Private window  ·  Ctrl+Shift+N", "Command", self.open_dirty_browser, "private incognito dirty")
+        add(
+            f"{HIGH_SPEED}: turn {'off' if self.settings.high_speed else 'on'}",
+            "Core blocklist, no janitor, prefetch on; YouTube ads stay blocked",
+            "Command", lambda: self.set_high_speed(not self.settings.high_speed), "fast speed turbo high",
+        )
+        add("Security audit", "superwebby://audit", "Command", self.open_audit, "audit security cve sandbox")
+        add("Settings & favorite sites", "superwebby://settings", "Command",
+            lambda: self.navigate("superwebby://settings"), "favorite pin preferences")
+        add("Superwebby on GitHub", GITHUB_URL, "Command", lambda: self.open_tab(GITHUB_URL), "github source repo")
         add("Close tab", "Ctrl+W", "Command", self.close_current_tab, "")
         add("Reopen closed tab", "Ctrl+Shift+T", "Command", self.reopen_tab, "undo")
         add("About Superwebby", "superwebby://about", "Command", lambda: self.navigate("superwebby://about"), "version")
@@ -673,7 +811,7 @@ class BrowserWindow(QMainWindow):
         self._fill_history("")
 
     def new_window(self) -> None:
-        win = BrowserWindow(self.profile, self.blocker, self.history, self.windowIcon(), self.incognito)
+        win = BrowserWindow(self.profile, self.blocker, self.history, self.windowIcon(), self.incognito, settings=self.settings)
         win.show()
         win.open_tab()
         self._siblings().append(win)
@@ -733,8 +871,16 @@ class BrowserWindow(QMainWindow):
             self.open_tab()
             return
         active = 0
-        for index, (url, _title, is_active) in enumerate(tabs):
-            self.open_tab(url, background=True)
+        lazy = bool(self.settings.high_speed)
+        for index, (url, title, is_active) in enumerate(tabs):
+            if lazy and not is_active and not url.startswith("superwebby://"):
+                # High Speed: restore background tabs without loading them.
+                self.open_tab(NEWTAB, background=True)
+                tab = self.tabs.widget(self.tabs.count() - 1)
+                self._pending_urls[id(tab)] = url
+                self.tabs.setTabText(self.tabs.count() - 1, (title or url)[:48])
+            else:
+                self.open_tab(url, background=True)
             if is_active:
                 active = index
         if self.tabs.count() == 0:
@@ -747,7 +893,9 @@ class BrowserWindow(QMainWindow):
         current = self.tabs.currentIndex()
         for i in range(self.tabs.count()):
             widget = self.tabs.widget(i)
-            if isinstance(widget, BrowserTab):
+            if isinstance(widget, BrowserTab) and id(widget) in self._pending_urls:
+                url = self._pending_urls[id(widget)]
+            elif isinstance(widget, BrowserTab):
                 url = widget.url_string()
             elif isinstance(widget, WebView):
                 url = widget.url().toString()
