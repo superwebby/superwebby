@@ -74,6 +74,11 @@
     <content_attribute id="money-purchasing">intense</content_attribute>
   </content_rating>
   <releases>
+    <release version="1.2.0" date="2026-11-27">
+      <description>
+        <p>Superwebby 1.2.0: Windows and macOS builds are now published alongside Linux. Platform-native data folders and a platform line on the about page.</p>
+      </description>
+    </release>
     <release version="1.1.0" date="2026-11-27">
       <description>
         <p>Superwebby 1.1.0.</p>
