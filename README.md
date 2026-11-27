@@ -14,10 +14,60 @@
 
 ## Install in one line
 
+Superwebby runs on **Linux, Windows 10/11 (x64), and macOS 14 Sonoma or newer
+(Apple Silicon and Intel)**. Every build is made by GitHub Actions from this
+repository and smoke-tested headlessly before it is attached to the release.
+
+### Windows
+
+1. Download **`superwebby-1.2.0-windows-x64-setup.exe`** from the
+   [latest release](https://github.com/superwebby/superwebby/releases/latest)
+   and run it. It installs for your user only (no admin prompt) into
+   `%LOCALAPPDATA%\Programs\Superwebby` and adds Start-menu entries for
+   Superwebby, Dirty Browser, and High Speed.
+2. **SmartScreen warning:** the installer is not signed with a paid code-signing
+   certificate, so Windows shows *"Windows protected your PC"*. Click
+   **More info**, then **Run anyway**.
+
+No installer wanted? Download **`superwebby-1.2.0-windows-x64-portable.zip`**,
+extract it anywhere, and run `superwebby\superwebby.exe`.
+
+PowerShell one-liner:
+
+```powershell
+iwr https://github.com/superwebby/superwebby/releases/download/v1.2.0/superwebby-1.2.0-windows-x64-setup.exe -OutFile $env:TEMP\superwebby-setup.exe; & $env:TEMP\superwebby-setup.exe
+```
+
+### macOS
+
+1. Download the `.dmg` for your Mac from the
+   [latest release](https://github.com/superwebby/superwebby/releases/latest):
+   **`superwebby-1.2.0-macos-arm64.dmg`** for Apple Silicon (M1 or newer), or
+   **`superwebby-1.2.0-macos-x86_64.dmg`** for Intel Macs.
+2. Open the `.dmg` and drag **Superwebby** onto **Applications**.
+3. **Gatekeeper warning:** the app is only ad-hoc signed (no paid Apple
+   Developer ID, not notarized), so the first launch says it can't be checked
+   for malicious software. Either **right-click (Control-click) Superwebby in
+   Applications → Open → Open**, or, on macOS 15 and newer where that button
+   may be missing, open *System Settings → Privacy & Security* and click
+   **Open Anyway**. Or clear the quarantine flag in Terminal:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Superwebby.app
+   ```
+
+Terminal one-liner (Apple Silicon; use `x86_64` in the file name on Intel):
+
+```bash
+curl -LO https://github.com/superwebby/superwebby/releases/download/v1.2.0/superwebby-1.2.0-macos-arm64.dmg && hdiutil attach -nobrowse superwebby-1.2.0-macos-arm64.dmg && cp -R "/Volumes/Superwebby 1.2.0/Superwebby.app" /Applications/ && hdiutil detach "/Volumes/Superwebby 1.2.0" && xattr -dr com.apple.quarantine /Applications/Superwebby.app && open /Applications/Superwebby.app
+```
+
+### Linux
+
 **Flatpak (any distro):**
 
 ```bash
-curl -LO https://github.com/superwebby/superwebby/releases/download/v1.1.0/superwebby-1.1.0.flatpak && flatpak install --user -y ./superwebby-1.1.0.flatpak && flatpak run io.github.superwebby.Superwebby
+curl -LO https://github.com/superwebby/superwebby/releases/download/v1.2.0/superwebby-1.2.0.flatpak && flatpak install --user -y ./superwebby-1.2.0.flatpak && flatpak run io.github.superwebby.Superwebby
 ```
 
 (Needs the Flathub remote for the KDE 6.11 runtime: `flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo`.)
@@ -34,7 +84,7 @@ mkdir -p superwebby-bin && cd superwebby-bin && curl -L --remote-name-all https:
 git clone https://github.com/superwebby/superwebby.git && cd superwebby/aur/superwebby && makepkg -si
 ```
 
-All release files and their SHA256SUMS: <https://github.com/superwebby/superwebby/releases/tag/v1.1.0>
+All release files and their SHA256SUMS: <https://github.com/superwebby/superwebby/releases/tag/v1.2.0>
 
 ## Screenshots
 
@@ -55,6 +105,16 @@ internal pages around that engine.
 The logo is a flower growing out of a rifle's barrel, standing in for the
 centre stroke of a giant peace sign made of people holding hands. It is a
 peace / anti-violence image ("flower power"), not a weapons one.
+
+## New in 1.2.0
+
+- **Windows and macOS builds.** A Windows x64 installer and portable zip, and
+  macOS `.dmg`s for Apple Silicon and Intel, built and smoke-tested by GitHub
+  Actions on every release tag (`.github/workflows/release.yml`).
+- Profile, settings, and cache use each platform's normal folders (see
+  *Where your data lives*). Downloads go to your system Downloads folder.
+- The security audit's sandbox check now inspects renderer processes on
+  Windows and macOS too, and the about page shows which platform build you run.
 
 ## New in 1.1.0
 
@@ -170,6 +230,18 @@ packaging/build-source-tarball.sh
 packaging/build-bin.sh
 ```
 
+Windows and macOS (run on that OS; `.github/workflows/release.yml` does this in CI):
+
+```bash
+python -m pip install -r packaging/requirements-build.txt
+python packaging/pyi_build.py              # dist/superwebby/ (Windows) or dist/Superwebby.app (macOS)
+python packaging/ci-smoke.py dist/superwebby/superwebby.exe windows-x64   # headless smoke test
+```
+
+The Windows installer is built from `packaging/windows/superwebby.iss` with
+Inno Setup 6. Icons (`assets/superwebby.ico`, `assets/superwebby.icns`) are
+generated by `packaging/make-platform-icons.py`.
+
 The AUR-style PKGBUILDs live in `aur/superwebby` and `aur/superwebby-bin`.
 Until the AUR accepts new accounts again, they are published here rather than
 on aur.archlinux.org.
@@ -184,14 +256,22 @@ python3 superwebby-run --high-speed
 python3 superwebby-run --add-favorite music.youtube.com
 python3 superwebby-run --audit               # print the security audit as JSON
 python3 superwebby-run --self-test --screenshot /tmp/superwebby.png
+python3 superwebby-run --self-test --report result.json   # also write results as JSON (Windows builds have no console)
 ```
 
 Dependencies: Python 3.11+, PyQt6, PyQt6 WebEngine (Arch: `python-pyqt6`
-`python-pyqt6-webengine` `qt6-webengine`).
+`python-pyqt6-webengine` `qt6-webengine`; Windows/macOS: `pip install PyQt6 PyQt6-WebEngine`).
 
-Profile data lives in `~/.local/share/superwebby/`. Cache is in
-`~/.cache/superwebby/`. Under Flatpak, those paths are remapped into the
-app's sandbox data directory. Nothing is sent anywhere.
+### Where your data lives
+
+| | Profile, history, session | Settings | Cache |
+| --- | --- | --- | --- |
+| Linux | `~/.local/share/superwebby/` | `~/.config/superwebby/` | `~/.cache/superwebby/` |
+| Windows | `%LOCALAPPDATA%\Superwebby\` | `%APPDATA%\Superwebby\` | `%LOCALAPPDATA%\Superwebby\Cache\` |
+| macOS | `~/Library/Application Support/Superwebby/` | `~/Library/Application Support/Superwebby/config/` | `~/Library/Caches/Superwebby/` |
+
+Under Flatpak, the Linux paths are remapped into the app's sandbox data
+directory. Nothing is sent anywhere.
 
 ## License
 

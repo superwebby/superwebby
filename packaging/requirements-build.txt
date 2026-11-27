@@ -1,0 +1,8 @@
+# Pinned to the versions the Linux 1.1.0 binary was built and audited with.
+PyQt6==6.12.1
+PyQt6-Qt6==6.12.1
+PyQt6-WebEngine==6.140.1
+PyQt6-WebEngine-Qt6==6.140.0
+PyQt6_sip==13.13.1
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.10

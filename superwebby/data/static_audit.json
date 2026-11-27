@@ -1,20 +1,20 @@
 {
   "status": "WARN",
   "summary": "bandit: WARN; pip-audit: PASS. pip-audit covers the PyPI wheels used for the AUR -bin binary; the Flatpak uses PyQt/Qt from com.riverbankcomputing.PyQt.BaseApp, whose engine version is shown in the runtime check.",
-  "generated": "Generated 2026-11-27T03:02:53-05:00",
+  "generated": "Generated 2026-11-27T06:47:55-05:00",
   "tools": [
     {
       "name": "bandit (Python security lint)",
       "status": "WARN",
-      "summary": "14 finding(s) in 3601 lines: 0 high, 0 medium, 14 low.",
+      "summary": "14 finding(s) in 3729 lines: 0 high, 0 medium, 14 low.",
       "findings": [
-        "LOW/HIGH B110 superwebby/app.py:377 Try, Except, Pass detected.",
+        "LOW/HIGH B110 superwebby/app.py:399 Try, Except, Pass detected.",
         "LOW/HIGH B110 superwebby/blocker.py:88 Try, Except, Pass detected.",
         "LOW/HIGH B110 superwebby/downloads.py:121 Try, Except, Pass detected.",
         "LOW/HIGH B110 superwebby/downloads.py:142 Try, Except, Pass detected.",
         "LOW/HIGH B110 superwebby/history.py:163 Try, Except, Pass detected.",
         "LOW/MEDIUM B105 superwebby/internal.py:28 Possible hardcoded password: '#3dd68c'",
-        "LOW/MEDIUM B105 superwebby/pages.py:223 Possible hardcoded password: '#3dd68c'",
+        "LOW/MEDIUM B105 superwebby/pages.py:225 Possible hardcoded password: '#3dd68c'",
         "LOW/HIGH B110 superwebby/theme.py:32 Try, Except, Pass detected.",
         "LOW/HIGH B110 superwebby/web.py:148 Try, Except, Pass detected.",
         "LOW/HIGH B110 superwebby/web.py:152 Try, Except, Pass detected.",

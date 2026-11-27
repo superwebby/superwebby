@@ -13,6 +13,7 @@ import datetime as _dt
 import json
 import os
 import re
+import sys
 from pathlib import Path
 
 from superwebby import __version__
@@ -202,50 +203,79 @@ def check_blocklist(blocker) -> dict:
     return _check("Ad/tracker blocklist", status, detail, evidence)
 
 
-def _webengine_children() -> list[str]:
-    """Command lines of QtWebEngineProcess children of this process (Linux)."""
-    me = os.getpid()
-    out = []
+def _process_table() -> list[tuple[int, int, str]]:
+    """(pid, ppid, command line) for every visible process, on Linux, macOS, and Windows."""
+    rows: list[tuple[int, int, str]] = []
     proc = Path("/proc")
-    if not proc.is_dir():
-        return out
-    for entry in proc.iterdir():
-        if not entry.name.isdigit():
+    if sys.platform.startswith("linux") and proc.is_dir():
+        for entry in proc.iterdir():
+            if not entry.name.isdigit():
+                continue
+            try:
+                stat = (entry / "stat").read_text()
+                ppid = int(stat.rsplit(")", 1)[1].split()[1])
+                cmd = (entry / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="ignore")
+                rows.append((int(entry.name), ppid, cmd))
+            except (OSError, ValueError, IndexError):
+                continue
+        return rows
+    import subprocess  # nosec B404 - fixed argv, no shell, used only to read the process list
+
+    try:
+        if sys.platform == "darwin":
+            out = subprocess.run(["/bin/ps", "-A", "-o", "pid=,ppid=,command="],  # nosec B603
+                                 capture_output=True, text=True, timeout=10).stdout
+            for line in out.splitlines():
+                parts = line.strip().split(None, 2)
+                if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+                    rows.append((int(parts[0]), int(parts[1]), parts[2] if len(parts) > 2 else ""))
+        elif sys.platform.startswith("win"):
+            script = ("Get-CimInstance Win32_Process -Filter \"Name='QtWebEngineProcess.exe'\" | "
+                      "ForEach-Object { \"$($_.ProcessId)`t$($_.ParentProcessId)`t$($_.CommandLine)\" }")
+            out = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],  # nosec B603 B607
+                                 capture_output=True, text=True, timeout=20,
+                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
+            for line in out.splitlines():
+                parts = line.split("\t", 2)
+                if len(parts) == 3 and parts[0].strip().isdigit() and parts[1].strip().isdigit():
+                    rows.append((int(parts[0]), int(parts[1]), parts[2]))
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return rows
+
+
+def _webengine_children() -> list[str]:
+    """Command lines of QtWebEngineProcess children (or grandchildren) of this process."""
+    me = os.getpid()
+    rows = _process_table()
+    parent = {pid: ppid for pid, ppid, _ in rows}
+    out = []
+    for pid, ppid, cmd in rows:
+        if "QtWebEngineProcess" not in cmd:
             continue
-        try:
-            stat = (entry / "stat").read_text()
-            ppid = int(stat.rsplit(")", 1)[1].split()[1])
-            cmd = (entry / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="ignore")
-        except (OSError, ValueError, IndexError):
-            continue
-        if "QtWebEngineProcess" in cmd:
-            # Our children, or grandchildren via the zygote.
-            if ppid == me or _parent_is(ppid, me):
+        cur, hops = ppid, 0
+        while hops < 4:
+            if cur == me:
                 out.append(cmd)
+                break
+            if cur not in parent:
+                # Windows only lists helper processes; climb what we have.
+                break
+            cur = parent[cur]
+            hops += 1
     return out
-
-
-def _parent_is(pid: int, ancestor: int, depth: int = 3) -> bool:
-    for _ in range(depth):
-        try:
-            stat = Path(f"/proc/{pid}/stat").read_text()
-            pid = int(stat.rsplit(")", 1)[1].split()[1])
-        except (OSError, ValueError, IndexError):
-            return False
-        if pid == ancestor:
-            return True
-    return False
 
 
 def check_sandbox() -> dict:
     flags = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
     env_off = os.environ.get("QTWEBENGINE_DISABLE_SANDBOX", "") not in ("", "0")
     flag_off = "--no-sandbox" in flags
-    flatpak = Path("/.flatpak-info").exists() or bool(os.environ.get("FLATPAK_ID"))
+    flatpak = sys.platform.startswith("linux") and (
+        Path("/.flatpak-info").exists() or bool(os.environ.get("FLATPAK_ID")))
     children = _webengine_children()
     child_off = [c for c in children if "--no-sandbox" in c]
     evidence = (f"QTWEBENGINE_DISABLE_SANDBOX={'set' if env_off else 'unset'}; --no-sandbox in flags: {flag_off}; "
-                f"Flatpak: {flatpak}; renderer processes observed: {len(children)}, "
+                f"Platform: {sys.platform}; Flatpak: {flatpak}; renderer processes observed: {len(children)}, "
                 f"of which started with --no-sandbox: {len(child_off)}.")
     if env_off or flag_off or child_off:
         extra = " The Flatpak sandbox still confines the whole app." if flatpak else ""
@@ -409,6 +439,7 @@ def run_audit(window) -> dict:
         "version": __version__,
         "ran_at": _dt.datetime.now().astimezone().isoformat(timespec="seconds"),
         "mode": "High Speed" if blocker.high_speed else "Normal",
+        "platform": sys.platform,
         "checks": checks,
         "counts": counts,
         "static": static,

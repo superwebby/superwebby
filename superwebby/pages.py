@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from PyQt6.QtCore import QBuffer, QByteArray, QIODevice, QUrl
 from PyQt6.QtWebEngineCore import QWebEngineUrlRequestJob, QWebEngineUrlSchemeHandler
 
+from superwebby.paths import platform_label
 from superwebby import __version__
 
 CSS = """
@@ -192,6 +193,7 @@ def about_html(block_count: int, domain_count: int) -> bytes:
     a command palette, and a real <kbd>Ctrl</kbd>+<kbd>J</kbd> downloads panel.
   </p>
   <p class="meta">Blocked this session: <strong>{block_count}</strong>. License: GPL-3.0-or-later.</p>
+  <p class="meta">Running on: {escape(platform_label())}</p>
   <p class="meta">Source, releases and issues: <a href="https://github.com/superwebby/superwebby">github.com/superwebby/superwebby</a></p>
 </div>
 """

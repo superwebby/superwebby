@@ -60,6 +60,11 @@ def _icon_path() -> Path:
         candidates.append(meipass / "assets" / "superwebby.png")
         candidates.append(Path(sys.executable).resolve().parent / "assets" / "superwebby.png")
     candidates.append(app_root().parent / "assets" / "superwebby.png")
+    if not sys.platform.startswith("linux"):
+        for path in candidates:
+            if path.is_file():
+                return path
+        return candidates[0]
     flatpak_id = os.environ.get("FLATPAK_ID", "io.github.superwebby.Superwebby")
     icon_stems = (flatpak_id, "superwebby")
     prefixes = ["/app/share"]
@@ -102,6 +107,8 @@ def _parse(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--high-speed", action="store_true", help="Start in High Speed mode (core blocklist, no janitor, prefetch on)")
     parser.add_argument("--add-favorite", metavar="SITE", action="append", help="Save a favorite site (pinned + per-site fixes) and exit")
     parser.add_argument("--audit", action="store_true", help="Print the security audit as JSON and exit")
+    parser.add_argument("--report", metavar="PATH",
+                        help="Also write --self-test / --audit results as JSON to PATH (Windows GUI builds have no console)")
     return parser.parse_args(argv)
 
 
@@ -121,10 +128,13 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["XDG_DATA_HOME"] = tmp
         os.environ["XDG_CACHE_HOME"] = tmp
         os.environ["XDG_CONFIG_HOME"] = tmp
-    offscreen = bool(args.offscreen or (args.self_test and not os.environ.get("DISPLAY")))
-    # Keep the real display when one exists so --self-test can screenshot.
-    if args.self_test and os.environ.get("DISPLAY") and not args.offscreen:
-        offscreen = False
+    if sys.platform.startswith("linux"):
+        has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+    else:
+        has_display = False
+    # Linux: keep the real display when one exists so --self-test can screenshot.
+    # Windows/macOS: --self-test and --audit always run offscreen (headless CI, no window flash).
+    offscreen = bool(args.offscreen or ((args.self_test or args.audit) and not has_display))
     _prepare_environment(offscreen=offscreen)
 
     from superwebby.web import register_scheme
@@ -142,7 +152,8 @@ def main(argv: list[str] | None = None) -> int:
     QCoreApplication.setApplicationVersion(__version__)
 
     app = QApplication(sys.argv[:1])
-    app.setDesktopFileName(os.environ.get("FLATPAK_ID") or "superwebby")
+    if sys.platform.startswith("linux"):
+        app.setDesktopFileName(os.environ.get("FLATPAK_ID") or "superwebby")
     app.setApplicationDisplayName(__app_name__)
     app.setQuitOnLastWindowClosed(True)
 
@@ -175,7 +186,10 @@ def main(argv: list[str] | None = None) -> int:
 
         from superwebby.audit import run_audit
 
-        print(json.dumps(run_audit(window), indent=2, default=str))
+        report = run_audit(window)
+        text = json.dumps(report, indent=2, default=str)
+        _write_report(args.report, text)
+        print(text)
         return 0
     window.show()
 
@@ -183,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.url:
         startup = interpret_input(args.url)
     if args.self_test:
-        return _run_self_test(app, window, blocker, screenshot=args.screenshot)
+        return _run_self_test(app, window, blocker, screenshot=args.screenshot, report=args.report)
     if startup:
         window.restore_or_start(startup_url=startup)
     elif args.no_restore or args.incognito:
@@ -204,7 +218,15 @@ def main(argv: list[str] | None = None) -> int:
     return app.exec()
 
 
-def _run_self_test(app, window, blocker, screenshot: str | None) -> int:
+def _write_report(path: str | None, text: str) -> None:
+    if not path:
+        return
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+
+
+def _run_self_test(app, window, blocker, screenshot: str | None, report: str | None = None) -> int:
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     from threading import Thread
     from PyQt6.QtCore import QTimer, QUrl
@@ -377,6 +399,12 @@ h1{color:#ff6b3d} .ok{color:#3dd68c}</style></head>
     except Exception:
         pass
     errors = results.get("errors") or []
+    import json
+    import platform
+
+    results["platform"] = f"{platform.system()} {platform.release()} {platform.machine()}"
+    results["version"] = __version__
+    _write_report(report, json.dumps(results, indent=2, default=str))
     if results.get("ok"):
         print(
             f"SUPERWEBBY SELF-TEST OK  domains={results.get('domains')} "

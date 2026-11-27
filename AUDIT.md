@@ -11,7 +11,7 @@ hard-coded to pass, and warnings and failures are shown as they are.
 | --- | --- | --- |
 | Telemetry endpoints | Parses Superwebby's own code (the source, or the compiled bytecode in the PyInstaller binary) for network imports, URL literals, and known telemetry hosts; confirms Chromium's phone-home switches are set (`--disable-breakpad`, `--disable-crash-reporter`, `--disable-component-update`, `--disable-background-networking`, `--disable-sync`, `--disable-domain-reliability`, `--no-pings`, `--disable-metrics`) | No telemetry hosts or network libraries in the code; every switch present |
 | Ad/tracker blocklist | Counts the domains actually loaded and reads the list version | ≥1,000 domains active, list ≤90 days old |
-| Chromium renderer sandbox | Reads `QTWEBENGINE_DISABLE_SANDBOX` and the Chromium flags, then inspects the live `QtWebEngineProcess` command lines in `/proc` | Renderers running and none started with `--no-sandbox` (WARN if none were running to confirm it) |
+| Chromium renderer sandbox | Reads `QTWEBENGINE_DISABLE_SANDBOX` and the Chromium flags, then inspects the live `QtWebEngineProcess` command lines (`/proc` on Linux, `ps` on macOS, `Win32_Process` on Windows) | Renderers running and none started with `--no-sandbox` (WARN if none were running to confirm it) |
 | HTTPS upgrade | Feeds a bare hostname through the address bar logic and checks the interceptor for an HTTPS-upgrade rule | Typed addresses *and* http:// links are upgraded |
 | Third-party cookies | Checks that the cookie-store filter is installed on the live profile | Third-party cookies refused |
 | WebRTC IP leak | Reads `WebRTCPublicInterfacesOnly` from the live profile | Local/LAN IPs hidden from WebRTC |

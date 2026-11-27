@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from superwebby import __version__
-from superwebby.paths import data_dir
+from superwebby.paths import data_dir, platform_label
 from superwebby.theme import ACCENT, BORDER, MUTED, SURFACE, SURFACE2, TEXT
 
 GITHUB_URL = "https://github.com/superwebby/superwebby"
@@ -303,6 +303,7 @@ class InternalPage(QWidget):
                 "and a real Ctrl+J downloads panel."
             ),
             self._sub(f"Blocked this session: {total}. License: GPL-3.0-or-later."),
+            self._sub(f"Running on: {platform_label()}"),
             self._link(f'Source, releases and issues: <a href="{GITHUB_URL}">{GITHUB_URL}</a>'),
             self._sub("Logo: a flower in a rifle's barrel over a peace sign made of people holding hands. "
                       "Superwebby is a peace project, not a weapons one."),

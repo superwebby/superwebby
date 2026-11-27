@@ -11,3 +11,5 @@ flatpak/ostree-repo/
 flatpak/*.flatpak
 packaging/*.tar.gz
 aur/*/*.tar.gz
+dist/
+release/

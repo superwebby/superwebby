@@ -1,6 +1,6 @@
 [project]
 name = "superwebby"
-version = "1.1.0"
+version = "1.2.0"
 description = "A painless, privacy-first desktop web browser with a real Ctrl+J downloads panel"
 readme = "README.md"
 license = { file = "LICENSE" }
