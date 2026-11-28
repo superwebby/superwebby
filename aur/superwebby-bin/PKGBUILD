@@ -1,6 +1,6 @@
 # Maintainer: Ray Shaw
 pkgname=superwebby-bin
-pkgver=1.1.0
+pkgver=1.2.0
 pkgrel=1
 pkgdesc="Painless privacy-first web browser with YouTube ad blocking and High Speed mode (prebuilt, stripped binary)"
 arch=('x86_64')
@@ -13,7 +13,7 @@ options=('!strip')
 source=("superwebby-${pkgver}-x86_64.tar.gz::https://github.com/superwebby/superwebby/releases/download/v${pkgver}/superwebby-${pkgver}-x86_64.tar.gz"
         "superwebby.desktop"
         "LICENSE")
-sha256sums=('cd55dbe0e3c54e09ea25519c14012427b5505287a6d83740ac4cffb67d33550e'
+sha256sums=('a14398db60f447d0b2812f743d6937c8cf3019ad58c2a9361fdc7b4660f0196c'
             'c1976063d27fec4a1717ece3a9d53136c8e1a5a2cbbabbd65b8c183dadd64b01'
             '3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986')
 
